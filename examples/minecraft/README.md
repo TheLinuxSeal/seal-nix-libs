@@ -1,7 +1,7 @@
 # A Minecraft network
 
 A NixOS machine configured in Seal, running a Minecraft network with
-the [`minecraft`](../../docs/minecraft) library's [`Server`](../../lib/minecraft/Server.seal):
+the [`minecraft`](../../docs/minecraft) library's [`Server`](../../lib/sealnix/libs/minecraft/Server.seal):
 
 - **proxy**, Velocity on 25565, where players connect. It signs them in and sends them on.
 - **lobby**, Paper, behind the proxy: where players join.

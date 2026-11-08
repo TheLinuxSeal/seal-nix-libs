@@ -15,7 +15,7 @@ anything changes on the machine. The build's log says, after `uncaught IllegalAr
 | Error | Means |
 | --- | --- |
 | `a name is letters, digits, - and _` | The server's name has another character, or is empty. |
-| `no loader: loader(Loaders.FABRIC), say, or Loaders.VANILLA, FORGE, NEOFORGE, PAPER, or VELOCITY for a proxy` | The server has no `.loader()`. |
+| `no loader: loader(Loader.FABRIC), say, or Loader.VANILLA, FORGE, NEOFORGE, PAPER, or VELOCITY for a proxy` | The server has no `.loader()`. |
 | `no Minecraft version: minecraftVersion("26.3"), say, or minecraftVersion("latest")` | The server has no `.minecraftVersion()`. |
 | `a proxy takes no Minecraft version; its Velocity's own version is loaderVersion()'s` | `.minecraftVersion()` on a proxy. |
 | `no Minecraft version "<version>"` | The version has a character a version doesn't, or is empty. |

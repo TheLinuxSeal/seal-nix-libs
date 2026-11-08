@@ -6,12 +6,12 @@ mods or plugins (from Modrinth) when it starts, and keeps them until the configu
 
 ```java
 import sealnix.*;
-import minecraft.*;
+import sealnix.libs.minecraft.*;
 
 class Main {
     static void main() {
         new Server("survival")
-            .loader(Loaders.FABRIC)
+            .loader(Loader.FABRIC)
             .minecraftVersion("26.3")
             .acceptEula()                        // Mojang's EULA: https://aka.ms/MinecraftEULA
             .memory("4G")
@@ -45,8 +45,8 @@ modules = [
 ];
 ```
 
-A Seal file that uses it imports the package, `import minecraft.*;`, which has three types: `Server`,
-`Loaders` (the loaders) and `Forwarding` (a proxy's forwarding modes).
+A Seal file that uses it imports the package, `import sealnix.libs.minecraft.*;`, which has three types: `Server`,
+`Loader` (the loaders) and `Forwarding` (a proxy's forwarding modes).
 
 ## Every setting
 

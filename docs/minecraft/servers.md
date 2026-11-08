@@ -5,12 +5,12 @@
 ## Loaders
 
 ```java
-new Server("survival").loader(Loaders.FABRIC).minecraftVersion("26.3")
+new Server("survival").loader(Loader.FABRIC).minecraftVersion("26.3")
 ```
 
 Every server has a loader, `.loader()`; without one, the configuration doesn't build.
 
-| `Loaders.` | Loader | Takes | From |
+| `Loader.` | Loader | Takes | From |
 | --- | --- | --- | --- |
 | `VANILLA` | Mojang's server | nothing | Mojang's version manifest |
 | `FABRIC` | Fabric | mods | meta.fabricmc.net |
@@ -175,7 +175,7 @@ and `.seal-mc/plugins.for` (the mods and plugins) in its folder, and restart it.
 ## Installing
 
 ```java
-var lobby = new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3").acceptEula();
+var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula();
 lobby.port(25566);                                  // a Server can be set in steps
 lobby.install();                                    // checked, then installed
 ```

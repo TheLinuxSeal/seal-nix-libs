@@ -20,7 +20,7 @@
       settings = module: import module { config = null; lib = null; pkgs = null; };
     in
     {
-      # The libraries, for seal-nix.libraries: each a package in a folder of its name (lib/minecraft).
+      # The libraries, for seal-nix.libraries: each a package, sealnix.libs.<name>, in its folder (lib/sealnix/libs/minecraft).
       sealLibrary = ./lib;
 
       # modules = [ seal-nix.nixosModules.default seal-nix-libs.nixosModules.default ... ]: the
@@ -57,7 +57,7 @@
           assert lib.hasInfix ''try = ["lobby", "smp"]'' s.minecraft-proxy.preStart;
           assert lib.hasInfix ''"smp.example.com" = ["smp"]'' s.minecraft-proxy.preStart;
           pkgs.runCommand "minecraft" { } ''
-            head -1 ${module} | grep -q "from Main.seal, minecraft/Forwarding.seal, minecraft/Loaders.seal, minecraft/Server.seal:"
+            head -1 ${module} | grep -q "from Main.seal, sealnix/libs/minecraft/Forwarding.seal, sealnix/libs/minecraft/Loader.seal, sealnix/libs/minecraft/Server.seal:"
             ${lib.concatStrings (lib.mapAttrsToList (name: unit: parse "${name}-preStart" unit.preStart + parse "${name}-script" unit.script) s)}
             touch $out
           '';

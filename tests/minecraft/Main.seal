@@ -1,12 +1,12 @@
 import sealnix.*;
-import minecraft.*;
+import sealnix.libs.minecraft.*;
 
 // The minecraft library's servers: one on its own, and a Velocity proxy with two servers configured
 // here behind it, and one elsewhere, by its address.
 class Main {
     static void main() {
         new Server("survival")
-            .loader(Loaders.FABRIC)
+            .loader(Loader.FABRIC)
             .minecraftVersion("26.3")
             .acceptEula()
             .memory("4G")
@@ -15,14 +15,14 @@ class Main {
             .property("motd", "A Seal server")
             .install();
 
-        var lobby = new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3")
+        var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3")
             .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit");
-        var smp = new Server("smp").loader(Loaders.FABRIC).minecraftVersion("26.3")
+        var smp = new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3")
             .acceptEula().mod("lithium");
         smp.port(25567);                                     // a server given to the proxy can still change
 
         new Server("proxy")
-            .loader(Loaders.VELOCITY)
+            .loader(Loader.VELOCITY)
             .server(lobby)
             .server(smp)
             .server("creative", "10.0.0.5:25565")

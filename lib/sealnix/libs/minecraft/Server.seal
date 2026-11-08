@@ -1,4 +1,4 @@
-package minecraft;
+package sealnix.libs.minecraft;
 
 import sealnix.*;
 import seal.util.List;
@@ -8,10 +8,10 @@ import seal.util.List;
 // a configuration imports the package; then each server is a Server, whose methods give its settings
 // and return it, and whose install() makes it so:
 //
-//     import minecraft.*;
+//     import sealnix.libs.minecraft.*;
 //
 //     new Server("smp")
-//         .loader(Loaders.FABRIC)
+//         .loader(Loader.FABRIC)
 //         .minecraftVersion("26.3")                 // Mojang's version, or "latest"
 //         .acceptEula()                             // Mojang's EULA: https://aka.ms/MinecraftEULA
 //         .memory("4G")
@@ -30,11 +30,11 @@ import seal.util.List;
 // FabricProxy-Lite, which joins its mods with the Fabric API it needs. The proxy's install() installs
 // it. A server elsewhere is given by its address, and set up by hand.
 //
-//     var lobby = new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3").acceptEula().port(25566);
-//     var smp = new Server("smp").loader(Loaders.FABRIC).minecraftVersion("26.3").acceptEula().port(25567);
+//     var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25566);
+//     var smp = new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3").acceptEula().port(25567);
 //
 //     new Server("proxy")
-//         .loader(Loaders.VELOCITY)
+//         .loader(Loader.VELOCITY)
 //         .port(25565)
 //         .server(lobby)                            // a player joins the first that is up
 //         .server(smp)
@@ -75,7 +75,7 @@ class Server {
     // The settings, which the methods of their names give: each field is named apart from its method,
     // which Seal asks.
     string name;
-    Loaders loaderType = Loaders.VANILLA;
+    Loader loaderType = Loader.VANILLA;
     bit loaderGiven = false;
     string minecraft = "";                   // "26.3", "1.21.1", or "latest" (the newest when first installed)
     string loaderRelease = "";               // the loader's own version; empty for the newest
@@ -111,9 +111,9 @@ class Server {
         this.name = name;
     }
 
-    // Its loader: Loaders.VANILLA (Mojang's server), FABRIC, FORGE or NEOFORGE (mods), PAPER (plugins),
+    // Its loader: Loader.VANILLA (Mojang's server), FABRIC, FORGE or NEOFORGE (mods), PAPER (plugins),
     // or VELOCITY (a proxy).
-    public Server loader(Loaders loader) {
+    public Server loader(Loader loader) {
         loaderType = loader;
         loaderGiven = true;
         return this;
@@ -283,12 +283,12 @@ class Server {
     // The port it listens on: the one given, or its loader's.
     int listenPort() {
         if (portGiven) { return portNumber; }
-        return loaderType == Loaders.VELOCITY ? 25577 : 25565;
+        return loaderType == Loader.VELOCITY ? 25577 : 25565;
     }
 
     // The Minecraft version, as the start reads it; a proxy has none, and its Velocity is the newest.
     string mcVersion() {
-        return loaderType == Loaders.VELOCITY ? "latest" : minecraft;
+        return loaderType == Loader.VELOCITY ? "latest" : minecraft;
     }
 
     void installService() {
@@ -344,10 +344,10 @@ class Server {
             throw new IllegalArgumentException("Minecraft server \"" + name + "\": a name is letters, digits, - and _");
         }
         if (!loaderGiven) {
-            throw new IllegalArgumentException(about + "no loader: loader(Loaders.FABRIC), say, or Loaders.VANILLA, "
+            throw new IllegalArgumentException(about + "no loader: loader(Loader.FABRIC), say, or Loader.VANILLA, "
                 + "FORGE, NEOFORGE, PAPER, or VELOCITY for a proxy");
         }
-        if (loaderType == Loaders.VELOCITY) {
+        if (loaderType == Loader.VELOCITY) {
             if (minecraft.length() > 0) {
                 throw new IllegalArgumentException(about + "a proxy takes no Minecraft version; its Velocity's own "
                     + "version is loaderVersion()'s");
@@ -367,19 +367,19 @@ class Server {
         if (portGiven && (portNumber < 1 || portNumber > 65535)) {
             throw new IllegalArgumentException(about + "no port " + portNumber);
         }
-        if (loaderType != Loaders.VELOCITY && !eula) {
+        if (loaderType != Loader.VELOCITY && !eula) {
             throw new IllegalStateException(about + "a server runs only once its owner accepts "
                 + "Mojang's EULA (https://aka.ms/MinecraftEULA): acceptEula()");
         }
-        bit modded = loaderType == Loaders.FABRIC || loaderType == Loaders.FORGE || loaderType == Loaders.NEOFORGE;
-        bit plugged = loaderType == Loaders.PAPER || loaderType == Loaders.VELOCITY;
+        bit modded = loaderType == Loader.FABRIC || loaderType == Loader.FORGE || loaderType == Loader.NEOFORGE;
+        bit plugged = loaderType == Loader.PAPER || loaderType == Loader.VELOCITY;
         if (!mods.isEmpty() && !modded) {
             throw new IllegalArgumentException(about + describe() + " takes no mods; Fabric, Forge and NeoForge do");
         }
         if (!plugins.isEmpty() && !plugged) {
             throw new IllegalArgumentException(about + describe() + " takes no plugins; Paper and Velocity do");
         }
-        if (loaderType == Loaders.VELOCITY && !propertyKeys.isEmpty()) {
+        if (loaderType == Loader.VELOCITY && !propertyKeys.isEmpty()) {
             throw new IllegalArgumentException(about + describe() + " has no server.properties; "
                 + "a proxy's own settings are its velocity.toml's");
         }
@@ -390,7 +390,7 @@ class Server {
                 throw new IllegalArgumentException(about + "no property " + propertyKeys.get(k));
             }
         }
-        if (loaderType == Loaders.VELOCITY) {
+        if (loaderType == Loader.VELOCITY) {
             checkProxy();
         } else if (proxyOption.length() > 0) {
             throw new IllegalArgumentException(about + proxyOption + "() is a Velocity proxy's, and "
@@ -464,7 +464,7 @@ class Server {
             Server b = behind.get(k);
             string them = about + b.name;
             b.check();
-            if (b.loaderType == Loaders.VELOCITY) {
+            if (b.loaderType == Loader.VELOCITY) {
                 throw new IllegalArgumentException(them + " is a proxy itself");
             }
             if (b.name == name) {
@@ -491,21 +491,21 @@ class Server {
     // MODERN and LEGACY, Fabric MODERN.
     void checkBehind(Server front) {
         Forwarding f = front.forwardingMode;
-        bit paper = loaderType == Loaders.PAPER && (f == Forwarding.MODERN || f == Forwarding.LEGACY);
-        bit fabric = loaderType == Loaders.FABRIC && f == Forwarding.MODERN;
+        bit paper = loaderType == Loader.PAPER && (f == Forwarding.MODERN || f == Forwarding.LEGACY);
+        bit fabric = loaderType == Loader.FABRIC && f == Forwarding.MODERN;
         if (f != Forwarding.NONE && !paper && !fabric) {
             throw new IllegalArgumentException("Minecraft server " + front.name + ": " + name + " (" + describe() + ") can't "
                 + "take " + f.name() + " forwarding as this sets it up (Paper takes MODERN or LEGACY, Fabric MODERN): give "
                 + "the proxy forwarding(Forwarding.NONE), or set up " + name + " by hand and give the proxy its address");
         }
-        if (loaderType == Loaders.PAPER && minecraft.startsWith("1.") && number(minecraft, 1) < 19) {
+        if (loaderType == Loader.PAPER && minecraft.startsWith("1.") && number(minecraft, 1) < 19) {
             throw new IllegalArgumentException("Minecraft server " + front.name + ": " + name + " is Paper " + minecraft
                 + "; behind a proxy, Paper is 1.19 or newer, whose config/paper-global.yml this sets");
         }
     }
 
     string describe() {
-        string version = loaderType == Loaders.VELOCITY ? loaderRelease : minecraft;
+        string version = loaderType == Loader.VELOCITY ? loaderRelease : minecraft;
         return loaderId() + (version.length() > 0 ? " " + version : "");
     }
 
@@ -524,7 +524,7 @@ class Server {
     // Velocity 4 needs 25.
     Pkg java() {
         if (customJdk != null) { return customJdk; }
-        if (loaderType == Loaders.VELOCITY) { return Packages.jdk25_headless; }
+        if (loaderType == Loader.VELOCITY) { return Packages.jdk25_headless; }
         if (!minecraft.startsWith("1.")) { return Packages.jdk25_headless; }
         int minor = number(minecraft, 1);
         int patch = number(minecraft, 2);
@@ -535,15 +535,15 @@ class Server {
 
     // What preStart runs with; Paper's yq edits its YAML, Velocity's unzip takes its default velocity.toml.
     string tools() {
-        string more = loaderType == Loaders.PAPER ? " " + Packages.yq_go
-            : loaderType == Loaders.VELOCITY ? " " + Packages.unzip : "";
+        string more = loaderType == Loader.PAPER ? " " + Packages.yq_go
+            : loaderType == Loader.VELOCITY ? " " + Packages.unzip : "";
         return "" + Packages.curl + " " + Packages.jq + " " + Packages.coreutils + " " + Packages.gawk + " "
             + Packages.gnugrep + " " + java() + more;
     }
 
     // The forwarding secret's file: a proxy's own, or the proxy's this is behind; empty for neither.
     string secretPath() {
-        if (loaderType == Loaders.VELOCITY) {
+        if (loaderType == Loader.VELOCITY) {
             return secretFile.length() > 0 ? secretFile : "/var/lib/minecraft/" + name + "/forwarding.secret";
         }
         return proxy != null ? proxy.secretPath() : "";
@@ -553,8 +553,8 @@ class Server {
     // PAPER_VELOCITY_SECRET, FabricProxy-Lite's FABRIC_PROXY_SECRET; empty for none.
     string secretVariable() {
         if (proxy == null || proxy.forwardingMode != Forwarding.MODERN) { return ""; }
-        if (loaderType == Loaders.PAPER) { return "PAPER_VELOCITY_SECRET"; }
-        if (loaderType == Loaders.FABRIC) { return "FABRIC_PROXY_SECRET"; }
+        if (loaderType == Loader.PAPER) { return "PAPER_VELOCITY_SECRET"; }
+        if (loaderType == Loader.FABRIC) { return "FABRIC_PROXY_SECRET"; }
         return "";
     }
 
@@ -562,7 +562,7 @@ class Server {
     // Fabric API it needs.
     List<Project> modList() {
         List<Project> list = copyOf(mods);
-        if (loaderType == Loaders.FABRIC && proxy != null && proxy.forwardingMode == Forwarding.MODERN) {
+        if (loaderType == Loader.FABRIC && proxy != null && proxy.forwardingMode == Forwarding.MODERN) {
             for (string slug : ["fabric-api", "fabricproxy-lite"]) {
                 if (!names(list, slug)) { list.add(new Project(slug, "")); }
             }
@@ -620,9 +620,9 @@ class Server {
         b.append("PLUGINS=(").append(words(specs(plugins))).append(")\n");
         b.append("PROPERTIES=(").append(words(propertyLines())).append(")\n");
         b.append("BEHIND=").append(proxy != null ? proxy.forwardingMode.name() : "").append('\n');
-        b.append("FORWARDING=").append(loaderType == Loaders.VELOCITY ? forwardingMode.name() : "").append('\n');
+        b.append("FORWARDING=").append(loaderType == Loader.VELOCITY ? forwardingMode.name() : "").append('\n');
         b.append("SECRET=").append(sh(secretPath())).append('\n');
-        b.append("OWN_SECRET=").append(loaderType == Loaders.VELOCITY && secretFile.length() == 0 ? "1" : "0").append('\n');
+        b.append("OWN_SECRET=").append(loaderType == Loader.VELOCITY && secretFile.length() == 0 ? "1" : "0").append('\n');
         b.append("SERVERS=").append(sh(serversToml())).append('\n');
         b.append(PREPARE);
         return b.toString();

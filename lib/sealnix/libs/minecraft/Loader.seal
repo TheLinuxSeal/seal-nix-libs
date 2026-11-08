@@ -1,5 +1,5 @@
-package minecraft;
+package sealnix.libs.minecraft;
 
 // A server's loader, for Server.loader(): Mojang's own server, a mod loader, Paper, with plugins, or
 // Velocity, a proxy.
-enum Loaders { VANILLA, FABRIC, FORGE, NEOFORGE, PAPER, VELOCITY }
+enum Loader { VANILLA, FABRIC, FORGE, NEOFORGE, PAPER, VELOCITY }

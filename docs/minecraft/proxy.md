@@ -7,13 +7,13 @@ servers, from one to another with `/server`. A server can be a `Server` of the s
 which is then set up behind the proxy by itself, or one elsewhere, by its address.
 
 ```java
-var lobby = new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3")
+var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3")
     .acceptEula().port(25566);
-var survival = new Server("survival").loader(Loaders.FABRIC).minecraftVersion("26.3")
+var survival = new Server("survival").loader(Loader.FABRIC).minecraftVersion("26.3")
     .acceptEula().port(25567).mod("lithium");
 
 new Server("proxy")
-    .loader(Loaders.VELOCITY)
+    .loader(Loader.VELOCITY)
     .port(25565)                                        // where players connect
     .forwarding(Forwarding.MODERN)                      // the default
     .forwardingSecretFile("/run/secrets/velocity")      // or one the proxy makes
@@ -27,7 +27,7 @@ new Server("proxy")
     .install();                                         // the proxy, lobby and survival
 ```
 
-A proxy is a `Server` with `.loader(Loaders.VELOCITY)`. It takes the settings every server does
+A proxy is a `Server` with `.loader(Loader.VELOCITY)`. It takes the settings every server does
 ([Servers](servers.md)) but `minecraftVersion()`, `property()` and `mod()`, and needs no
 `acceptEula()`. It listens on 25577 unless `.port()` says, on every address.
 Its Velocity is the newest release unless `.loaderVersion("3.5.1")` names one, and runs on Java 25.

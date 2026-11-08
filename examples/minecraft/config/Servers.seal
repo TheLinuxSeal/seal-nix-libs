@@ -1,5 +1,5 @@
 import sealnix.*;
-import minecraft.*;
+import sealnix.libs.minecraft.*;
 
 // The Minecraft servers. Players connect to the proxy, on 25565, the port Minecraft tries when an
 // address has none: it signs them in, and sends them to the lobby (or to survival, if the lobby is
@@ -8,7 +8,7 @@ import minecraft.*;
 class Servers {
     public static void add() {
         var lobby = new Server("lobby")
-            .loader(Loaders.PAPER)
+            .loader(Loader.PAPER)
             .minecraftVersion("26.3")
             .acceptEula()                                        // Mojang's EULA: https://aka.ms/MinecraftEULA
             .port(25566)
@@ -16,7 +16,7 @@ class Servers {
             .property("motd", "The lobby");
 
         var survival = new Server("survival")
-            .loader(Loaders.FABRIC)
+            .loader(Loader.FABRIC)
             .minecraftVersion("26.3")
             .acceptEula()
             .port(25567)
@@ -27,7 +27,7 @@ class Servers {
             .property("view-distance", "12");
 
         new Server("proxy")
-            .loader(Loaders.VELOCITY)
+            .loader(Loader.VELOCITY)
             .port(25565)
             .memory("1G")
             .server(lobby)                                       // joined first
@@ -37,7 +37,7 @@ class Servers {
             .install();                                          // the proxy, the lobby and survival
 
         new Server("creative")
-            .loader(Loaders.VANILLA)
+            .loader(Loader.VANILLA)
             .minecraftVersion("26.3")
             .acceptEula()
             .port(25570)
