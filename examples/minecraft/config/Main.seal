@@ -1,0 +1,22 @@
+import sealnix.*;
+
+// A machine that runs a Minecraft network: the machine itself here, and its servers in Servers.seal.
+class Main {
+    static void main() {
+        Config.networking.hostName = "minecraft";
+        Config.time.timeZone = "Europe/Kyiv";
+
+        Config.boot.loader.systemd_boot.enable = true;
+        Config.boot.loader.efi.canTouchEfiVariables = true;
+
+        Config.services.openssh.enable = true;
+        Config.nix.settings.experimental_features.add("nix-command");
+        Config.nix.settings.experimental_features.add("flakes");
+
+        Config.users.users.seal.isNormalUser = true;
+        Config.users.users.seal.extraGroups.add("wheel");
+        Config.users.users.seal.initialPassword = "seal";        // change it after the first login: passwd
+
+        Servers.add();                                           // Servers.seal, beside this file
+    }
+}

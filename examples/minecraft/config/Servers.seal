@@ -1,0 +1,43 @@
+import sealnix.*;
+import minecraft.MinecraftServerUtil;
+
+// The Minecraft servers. Players connect to the proxy, on 25565, the port Minecraft tries when an
+// address has none: it signs them in, and sends them to the lobby (or to survival, if the lobby is
+// down), and on from there with /server. The lobby and survival are behind it, reached only through
+// it; creative is on its own, on a port of its own.
+class Servers {
+    public static void add() {
+        MinecraftServerUtil.Server lobby = MinecraftServerUtil.paper("lobby", "26.3")
+            .acceptEula()                                        // Mojang's EULA: https://aka.ms/MinecraftEULA
+            .port(25566)
+            .plugin("luckperms")                                 // Modrinth projects, by slug
+            .property("motd", "The lobby")
+            .build();
+
+        MinecraftServerUtil.Server survival = MinecraftServerUtil.fabric("survival", "26.3")
+            .acceptEula()
+            .port(25567)
+            .memory("4G")
+            .mod("lithium")                                      // fabric-api and FabricProxy-Lite come with the proxy
+            .mod("ferrite-core")
+            .property("difficulty", "hard")
+            .property("view-distance", "12")
+            .build();
+
+        MinecraftServerUtil.velocity("proxy")
+            .port(25565)
+            .memory("1G")
+            .server(lobby)                                       // joined first
+            .server(survival)
+            .forcedHost("survival.example.com", "survival")      // who connects by this name goes straight there
+            .plugin("luckperms")
+            .install();                                          // the proxy, the lobby and survival
+
+        MinecraftServerUtil.vanilla("creative", "26.3")
+            .acceptEula()
+            .port(25570)
+            .property("gamemode", "creative")
+            .property("pvp", "false")
+            .install();
+    }
+}

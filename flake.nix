@@ -28,6 +28,12 @@
       nixosModules.default = { seal-nix.libraries = [ self.sealLibrary ]; };
       nixosModules.seal-nix-libs = self.nixosModules.default;
 
+      # nix flake init -t github:TheLinuxSeal/seal-nix-libs#minecraft
+      templates.minecraft = {
+        path = ./examples/minecraft;
+        description = "A NixOS machine running a Minecraft network, configured in Seal";
+      };
+
       checks = forAllSystems (system: pkgs: {
         # tests/minecraft: a server on its own, and a Velocity proxy with servers behind it; and every
         # script the services run, read by bash
@@ -53,6 +59,24 @@
             ${lib.concatStrings (lib.mapAttrsToList (name: unit: parse "${name}-preStart" unit.preStart + parse "${name}-script" unit.script) s)}
             touch $out
           '';
+      } // lib.optionalAttrs (system == "x86_64-linux") {
+        # examples/minecraft, as its flake makes it but with this flake's libraries: the whole system,
+        # and its virtual machine, evaluated
+        example-minecraft =
+          let
+            machine = lib.nixosSystem {
+              modules = [
+                ./examples/minecraft/hardware-configuration.nix
+                ./examples/minecraft/vm.nix
+                seal-nix.nixosModules.default
+                self.nixosModules.default
+                { seal-nix.src = ./examples/minecraft/config/Main.seal; }
+              ];
+            };
+            build = machine.config.system.build;
+          in
+          pkgs.writeText "example-minecraft"
+            (builtins.unsafeDiscardStringContext "${build.toplevel.drvPath}\n${build.vm.drvPath}\n");
       });
     };
 }
