@@ -57,8 +57,9 @@ class Server extends(Service<Server>) {
     List<string> propertyValues = new List();
     List<Player> ops = new List();
     List<Player> bans = new List();
+    List<Player> allowed = new List();       // the whitelist
 
-    // A player named in ops.json, at a level, or in banned-players.json, at level 0.
+    // A player named in ops.json, at a level, or in banned-players.json or whitelist.json, at level 0.
     record Player(string name, string uuid, int level) { }
 
     private<Proxy> Proxy proxy = null;       // the proxy this is behind, once given to one
@@ -164,6 +165,14 @@ class Server extends(Service<Server>) {
         return this;
     }
 
+    // A player on the whitelist, in whitelist.json at every start: their name, and their UUID. Giving
+    // anyone turns the whitelist on. Players added in the game are kept; one no longer given here is
+    // taken off. Taking the last one out leaves it on: property("white-list", "false") turns it off.
+    public Server whitelist(string name, string uuid) {
+        allowed.add(new Player(name, uuid, 0));
+        return this;
+    }
+
     // The service, its user, and the port. A server given to a proxy is the proxy's to install.
     public void install() {
         if (proxy != null) {
@@ -205,6 +214,15 @@ class Server extends(Service<Server>) {
         StringBuilder b = new StringBuilder();
         for (Player p : bans) {
             b.append(b.length() > 0 ? "," : "").append(playerJson(p)).append(",\"expires\":\"forever\"}");
+        }
+        return "[" + b.toString() + "]";
+    }
+
+    // The whitelist, as JSON for the start.
+    private<Service> string whitelistJson() {
+        StringBuilder b = new StringBuilder();
+        for (Player p : allowed) {
+            b.append(b.length() > 0 ? "," : "").append(playerJson(p)).append('}');
         }
         return "[" + b.toString() + "]";
     }
@@ -295,16 +313,19 @@ class Server extends(Service<Server>) {
         }
         List<string> seen = new List();
         for (Player p : ops) {
-            checkPlayer(about, p, seen);
+            checkPlayer(about, p, seen, "op() or ban()");
             if (p.level < 1 || p.level > 4) {
                 throw new IllegalArgumentException(about + "no operator level " + p.level + " for " + p.name + ": it is 1 to 4");
             }
         }
-        for (Player p : bans) { checkPlayer(about, p, seen); }
+        for (Player p : bans) { checkPlayer(about, p, seen, "op() or ban()"); }
+        // a list of its own: an operator can be on the whitelist too
+        List<string> listed = new List();
+        for (Player p : allowed) { checkPlayer(about, p, listed, "whitelist()"); }
     }
 
     // A player's name and UUID, which the server would otherwise drop from its file without a word.
-    void checkPlayer(string about, Player p, List<string> seen) {
+    void checkPlayer(string about, Player p, List<string> seen, string method) {
         if (p.name.length() == 0 || p.name.contains("\n") || p.name.contains("\t")) {
             throw new IllegalArgumentException(about + "no player \"" + p.name + "\"");
         }
@@ -314,7 +335,7 @@ class Server extends(Service<Server>) {
                 + "32 hexadecimal digits, as 069a79f4-44e9-4726-a5be-fca90e38aaf5");
         }
         if (seen.contains(id)) {
-            throw new IllegalArgumentException(about + "the player " + id + " (" + p.name + ") is given twice: op() or ban(), once");
+            throw new IllegalArgumentException(about + "the player " + id + " (" + p.name + ") is given twice: " + method + ", once");
         }
         seen.add(id);
     }
@@ -365,6 +386,7 @@ class Server extends(Service<Server>) {
             lines.add("online-mode=false");
             lines.add("server-ip=127.0.0.1");
         }
+        if (!allowed.isEmpty()) { lines.add("white-list=true"); }
         for (int k = 0; k < propertyKeys.size(); k++) { lines.add(propertyKeys.get(k) + "=" + propertyValues.get(k)); }
         return lines;
     }

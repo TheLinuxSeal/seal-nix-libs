@@ -63,6 +63,9 @@
           assert lib.hasInfix "CONFIGS='[]'" s.minecraft-smp.preStart;
           assert lib.hasInfix ''OPS='[{"uuid":"11111111-2222-4333-8444-555555555555","name":"seal","level":4},{"uuid":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee","name":"mod","level":2}]'' s.minecraft-survival.preStart;
           assert lib.hasInfix ''BANS='[{"uuid":"99999999-8888-4777-8666-555555555555","name":"griefer","expires":"forever"}]'' s.minecraft-survival.preStart;
+          assert lib.hasInfix ''WHITELIST='[{"uuid":"11111111-2222-4333-8444-555555555555","name":"seal"},{"uuid":"bbbbbbbb-cccc-4ddd-8eee-ffffffffffff","name":"friend"}]'' s.minecraft-survival.preStart;
+          assert lib.hasInfix "PROPERTIES=('white-list=true' 'motd=A Seal server')" s.minecraft-survival.preStart;
+          assert lib.hasInfix "WHITELIST='[]'" s.minecraft-smp.preStart;
           assert lib.hasInfix "OPS='[]'" s.minecraft-smp.preStart;
           assert lib.hasInfix "BANS='[]'" s.minecraft-proxy.preStart;
           assert lib.hasInfix "PROPERTIES=('online-mode=false' 'server-ip=127.0.0.1')" s.minecraft-lobby.preStart;

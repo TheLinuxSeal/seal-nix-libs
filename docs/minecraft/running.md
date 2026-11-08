@@ -45,8 +45,8 @@ The service's `preStart` runs first, as `minecraft`, in the server's folder:
 4. **The config files**: what the configuration no longer sets is taken out, and then each
    [`ConfigFile`](servers.md#config-files) is applied, after the settings, so that it has the last word
    on them.
-5. **[Operators and bans](servers.md#operators-and-bans)**: each player given goes in `ops.json` or
-   `banned-players.json`, and those no longer given come out.
+5. **[Operators, bans and the whitelist](servers.md#operators-and-bans)**: each player given goes in
+   `ops.json`, `banned-players.json` or `whitelist.json`, and those no longer given come out.
 
 Then the server itself: `java -Xms<memory> -Xmx<memory> <jvmArgs> <the loader's arguments>`, with
 the forwarding secret in its environment behind a proxy.
@@ -91,7 +91,7 @@ The requests say who they are from, as Modrinth asks: `seal-nix-libs minecraft
     ├── behind               the forwarding of the proxy this is behind; empty for none
     ├── installer.log        Forge's or NeoForge's installer's output
     ├── configs              the config files of the last start, to know what no longer is
-    └── ops, bans            the players they named, for the same reason
+    └── ops, bans, whitelist the players they named, for the same reason
 ```
 
 Deleting `.seal-mc/requested` chooses the loader again at the next start, and deleting `mods.for`
@@ -99,9 +99,9 @@ Deleting `.seal-mc/requested` chooses the loader again at the next start, and de
 
 ## Commands and RCON
 
-A service has no console to type in. Commands go through RCON, or the game. Operators and bans can
-be [in the configuration](servers.md#operators-and-bans), and `ops.json` and the others can also be
-edited, with the server stopped.
+A service has no console to type in. Commands go through RCON, or the game. Operators, bans and the
+whitelist can be [in the configuration](servers.md#operators-and-bans), and `ops.json` and the others
+can also be edited, with the server stopped.
 
 ```java
 .property("enable-rcon", "true")

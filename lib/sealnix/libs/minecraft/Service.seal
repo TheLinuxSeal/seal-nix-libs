@@ -129,6 +129,7 @@ abstract class Service<T> {
     private<Server, Proxy> string curseforgeKeyFile() { return ""; } // the API key's file, if it has CurseForge mods
     private<Server, Proxy> string opsJson() { return "[]"; }         // the operators given, as JSON
     private<Server, Proxy> string bansJson() { return "[]"; }        // the players banned, as JSON
+    private<Server, Proxy> string whitelistJson() { return "[]"; }   // the whitelist, as JSON
 
     // The port it listens on: the one given, or its own.
     private<Server, Proxy> int listenPort() {
@@ -281,6 +282,7 @@ abstract class Service<T> {
         b.append("CURSEFORGE_KEY=").append(sh(curseforgeKeyFile())).append('\n');
         b.append("OPS=").append(sh(opsJson())).append('\n');
         b.append("BANS=").append(sh(bansJson())).append('\n');
+        b.append("WHITELIST=").append(sh(whitelistJson())).append('\n');
         b.append(PREPARE);
         return b.toString();
     }
@@ -839,8 +841,8 @@ abstract class Service<T> {
         done < <(jq -c '.[]' <<<"$CONFIGS")
         mv -f .seal-mc/configs.next .seal-mc/configs
 
-        # players FILE STATE NAMED DEFAULTS: ops.json or banned-players.json, if the configuration names
-        # anyone, or did. Each player it names is set, one it named and no longer does goes, and those the
+        # players FILE STATE NAMED DEFAULTS: ops.json, banned-players.json or whitelist.json, if the
+        # configuration names anyone, or did. Each player it names is set, one it named and no longer does goes, and those the
         # server added stay. An entry already there keeps what NAMED doesn't say, and a new one has DEFAULTS.
         # A broken file stops the start, whose reason is then in the log: Paper would set it aside and
         # start with an empty list, and let a banned player in.
@@ -864,5 +866,6 @@ abstract class Service<T> {
         players ops.json ops "$OPS" '{"bypassesPlayerLimit":false}'
         now=$(date '+%Y-%m-%d %H:%M:%S %z')
         players banned-players.json bans "$BANS" "$(jq -cn --arg now "$now" '{created: $now, source: "Server", reason: "Banned by an operator."}')"
+        players whitelist.json whitelist "$WHITELIST" '{}'
         """;
 }

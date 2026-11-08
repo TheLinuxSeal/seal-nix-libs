@@ -25,7 +25,7 @@ class Main {
 
 | Page | |
 | --- | --- |
-| [Servers](servers.md) | Loaders, Minecraft and loader versions, mods and plugins, `server.properties`, operators and bans, config files, memory and Java, ports, updates |
+| [Servers](servers.md) | Loaders, Minecraft and loader versions, mods and plugins, `server.properties`, operators, bans and the whitelist, config files, memory and Java, ports, updates |
 | [Velocity proxies](proxy.md) | Forwarding, the forwarding secret, the proxy's servers, try list and forced hosts, servers behind a proxy |
 | [Running](running.md) | The systemd service, the folders and files, what a start does, logs, commands, security |
 | [Errors](errors.md) | Every error the configuration or a start can give, and what to do |
@@ -67,6 +67,7 @@ its folder, `/var/lib/minecraft/<name>`: letters, digits, `-` and `_`.
 | `.acceptEula()` | `Server` | not accepted: an error | [server.properties](servers.md#serverproperties-and-the-eula) |
 | `.property(key, value)` | `Server` | none | [server.properties](servers.md#serverproperties-and-the-eula) |
 | `.op(name, uuid, level)`, `.ban(name, uuid)` | `Server` | none | [Operators and bans](servers.md#operators-and-bans) |
+| `.whitelist(name, uuid)` | `Server` | no one; 26.3 has the whitelist on | [The whitelist](servers.md#the-whitelist) |
 | `.config(file)` | all | none | [Config files](servers.md#config-files) |
 | `.modrinthMod(project)`, `.modrinthMod(project, version)` | `Server`: Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
 | `.curseforgeMod(project)`, `.curseforgeMod(project, file)` | `Server`: Fabric, Forge, NeoForge | none | [From CurseForge](servers.md#from-curseforge) |

@@ -14,6 +14,7 @@ class Servers {
             .port(25566)
             .plugin("luckperms")                                 // Modrinth projects, by slug
             .property("motd", "The lobby")
+            .property("white-list", "false")                     // a new 26.3 server lets in only its whitelist and operators
             .config(new ConfigFile("plugins/LuckPerms/config.yml").set("server", "lobby"));   // a plugin's own config
 
         var survival = new Server("survival")
@@ -25,7 +26,8 @@ class Servers {
             .modrinthMod("lithium")                                      // fabric-api and FabricProxy-Lite come with the proxy
             .modrinthMod("ferrite-core")
             .property("difficulty", "hard")
-            .property("view-distance", "12");
+            .property("view-distance", "12")
+            .property("white-list", "false");
 
         new Proxy("proxy")
             .port(25565)
@@ -43,6 +45,7 @@ class Servers {
             .port(25570)
             .property("gamemode", "creative")
             .property("pvp", "false")
+            .property("white-list", "false")
             .install();
     }
 }

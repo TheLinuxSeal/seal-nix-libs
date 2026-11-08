@@ -207,7 +207,34 @@ empty list, letting a banned player in. A server that has never had an `.op()` o
 files left alone.
 
 Each server has its own lists, so to keep someone off a whole network, give `.ban()` to each server
-behind the proxy. A proxy has neither, and no `.op()` or `.ban()`.
+behind the proxy. A proxy has none of these lists, and no `.op()`, `.ban()` or `.whitelist()`.
+
+### The whitelist
+
+```java
+.whitelist("seal", "11111111-2222-4333-8444-555555555555")
+.whitelist("friend", "bbbbbbbbcccc4ddd8eeeffffffffffff")
+```
+
+A new Minecraft 26.3 server has its whitelist **on**, with no one on it, so a server with no
+`.whitelist()` lets in only its operators. To let anyone in, turn it off:
+
+```java
+.property("white-list", "false")
+```
+
+`.whitelist(name, uuid)` puts a player in `whitelist.json`, and turns the whitelist on. The UUID is
+as [above](#operators-and-bans), and it works the same way: set at every start, a player taken out of
+the configuration comes off at the next one, anyone added with `/whitelist add` stays, and a file that
+isn't a JSON list stops the start.
+
+`.op()` doesn't add anyone to the whitelist, but Minecraft itself lets operators past it, and no
+setting changes that. A banned player stays out even if they are on it. A player can be given to
+`.op()` and `.whitelist()` both.
+
+Taking out the last `.whitelist()` leaves the whitelist on, so that no change to the configuration
+opens a server to everyone by accident. `.property("white-list", "false")` is what turns it off, and
+it wins over `.whitelist()`.
 
 ## Config files
 

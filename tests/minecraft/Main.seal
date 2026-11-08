@@ -24,6 +24,8 @@ class Main {
             .op("seal", "11111111-2222-4333-8444-555555555555", 4)
             .op("mod", "AAAAAAAABBBB4CCC8DDDEEEEEEEEEEEE", 2)        // Mojang's form: no dashes, and any case
             .ban("griefer", "99999999-8888-4777-8666-555555555555")
+            .whitelist("seal", "11111111-2222-4333-8444-555555555555")   // an operator can be on it too
+            .whitelist("friend", "BBBBBBBBCCCC4DDD8EEEFFFFFFFFFFFF")
             .install();
 
         var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3")

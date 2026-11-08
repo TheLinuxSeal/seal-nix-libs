@@ -38,9 +38,10 @@ A setting its type doesn't have doesn't compile, and Seal says so, as `Proxy has
 | `without an API key, CurseForge's site can't look up "<slug>": give its project ID, ...` | A `.curseforgeMod()` by slug, with no key. Give the ID, on the project's page, or the key: [From CurseForge](servers.md#from-curseforge). |
 | `no property <key>` | A property's key has a character other than letters, digits, `.`, `-` and `_`, or its value a new line. |
 | `no operator level <level> for <name>: it is 1 to 4` | `.op()`'s level is outside 1 to 4. |
-| `no player "<name>"` | `.op()` or `.ban()` with an empty name, or one with a tab or a new line. |
+| `no player "<name>"` | `.op()`, `.ban()` or `.whitelist()` with an empty name, or one with a tab or a new line. |
 | `<name>'s UUID "<uuid>" isn't one: 32 hexadecimal digits, as 069a79f4-44e9-4726-a5be-fca90e38aaf5` | Not a UUID, with or without its dashes; or the name and the UUID are the wrong way round. [Operators and bans](servers.md#operators-and-bans) says how to find it. |
 | `the player <uuid> (<name>) is given twice: op() or ban(), once` | The same UUID in two `.op()`s or `.ban()`s, or in both an `.op()` and a `.ban()`. |
+| `the player <uuid> (<name>) is given twice: whitelist(), once` | The same UUID in two `.whitelist()`s. |
 | `is installed twice: install each server once, each with a name of its own` | `install()` twice, or two servers of one name. |
 
 ### A config file
@@ -123,7 +124,7 @@ reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts wi
 | `<slug> has no version <version> for <loader> <version> on Modrinth` | The version given isn't one of the project's version numbers or IDs, or isn't for that loader and Minecraft version. | The whole version number, as the project's Versions tab on Modrinth shows it. |
 | `<path> can't be read as <format>, so its settings can't be set; text() writes a whole file` | The file isn't what its extension says: a mod's `.json` with comments in it, say. It is left as it was. | Give the whole file with `.text()`. |
 | `<path>: can't set <key>, which is under a value that isn't a section` | Part of the key is a value in the file, as `top.sub` where `top = 1`. It is left as it was. | The key as the file has it. |
-| `<file> can't be read as a list of players, so its players can't be set: mend it, or delete it` | `ops.json` or `banned-players.json` isn't a JSON list. It is left as it was. | Mend the file, or delete it: the server starts a new one, and `.op()` and `.ban()` fill it. |
+| `<file> can't be read as a list of players, so its players can't be set: mend it, or delete it` | `ops.json`, `banned-players.json` or `whitelist.json` isn't a JSON list. It is left as it was. | Mend the file, or delete it: the server starts a new one, and the configuration's players go in it. |
 | `MODERN forwarding is signed with a secret, and <path> holds none` | The proxy's `forwardingSecretFile()` is missing, empty, or not the user `minecraft`'s to read. (`BUNGEEGUARD` says so too.) | The file, or its owner. |
 | `no forwarding secret to read in <path>, which minecraft-<proxy> signs with` | A server behind a proxy started before the proxy made its secret, or can't read the one given. | Start the proxy: `systemctl start minecraft-<proxy>`. |
 
