@@ -1,0 +1,31 @@
+import sealnix.*;
+import minecraft.MinecraftServerUtil;
+
+// MinecraftServerUtil's servers: one on its own, and a Velocity proxy with two servers built here
+// behind it, and one elsewhere, by its address.
+class Main {
+    static void main() {
+        MinecraftServerUtil.fabric("survival", "26.3")
+            .acceptEula()
+            .memory("4G")
+            .mod("fabric-api")
+            .mod("lithium")
+            .property("motd", "A Seal server")
+            .install();
+
+        MinecraftServerUtil.Server lobby = MinecraftServerUtil.paper("lobby", "26.3")
+            .acceptEula().port(25566).plugin("luckperms").build();
+        MinecraftServerUtil.Server smp = MinecraftServerUtil.fabric("smp", "26.3")
+            .acceptEula().port(25567).mod("lithium").build();
+
+        MinecraftServerUtil.velocity("proxy")
+            .server(lobby)
+            .server(smp)
+            .server("creative", "10.0.0.5:25565")
+            .tryServer("lobby")
+            .tryServer("smp")
+            .forcedHost("smp.example.com", "smp")
+            .plugin("luckperms")
+            .install();
+    }
+}
