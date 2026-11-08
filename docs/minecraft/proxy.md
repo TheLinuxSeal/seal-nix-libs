@@ -10,7 +10,7 @@ which is then set up behind the proxy by itself, or one elsewhere, by its addres
 var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3")
     .acceptEula().port(25566);
 var survival = new Server("survival").loader(Loader.FABRIC).minecraftVersion("26.3")
-    .acceptEula().port(25567).mod("lithium");
+    .acceptEula().port(25567).modrinthMod("lithium");
 
 new Proxy("proxy")
     .port(25565)                                        // where players connect
@@ -29,7 +29,7 @@ new Proxy("proxy")
 A proxy is a `new Proxy(name)`, always Velocity. `Proxy` and `Server` are each a `Service`, so it has
 the settings they share ([Servers](servers.md)): `port()`, `memory()`, `jvmArg()`, `jdk()`,
 `openFirewall()`, `autoUpdate()`, `plugin()`, `config()` and `loaderVersion()`. It has no
-`minecraftVersion()`, `acceptEula()`, `property()` or `mod()`. It listens on 25577 unless `.port()` says, on every address.
+`minecraftVersion()`, `acceptEula()`, `property()`, `modrinthMod()` or `curseforgeMod()`. It listens on 25577 unless `.port()` says, on every address.
 Its Velocity is the newest release unless `.loaderVersion("3.5.1")` names one, and runs on Java 25.
 
 ## velocity.toml
@@ -175,7 +175,7 @@ A machine can have several proxies, each with its servers, its port and its secr
 A server no longer given to a proxy, and installed on its own, is put back at its next start:
 `online-mode=true`, `server-ip=` (every address), Paper's forwarding off. Its port is in the firewall
 again, unless `.openFirewall(false)`, and its folder stays `0750`. A Fabric server loses
-FabricProxy-Lite, and `fabric-api` too unless it names it: give it `.mod("fabric-api")` if its other
+FabricProxy-Lite, and `fabric-api` too unless it names it: give it `.modrinthMod("fabric-api")` if its other
 mods need it.
 
 ## A server set up by hand

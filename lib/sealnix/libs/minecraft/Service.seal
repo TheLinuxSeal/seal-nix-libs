@@ -11,11 +11,12 @@ abstract class Service<T> {
     // The names of the services installed: each is a service and a folder of its own.
     private<Server, Proxy> static List<string> installed = new List();
 
-    // A mod or plugin from Modrinth: its project, by slug or ID, and its version, by version number or
-    // version ID, empty for the newest.
-    public record Project(string name, string version) {
-        // As the start reads it: slug, or slug@version.
-        string spec() { return version.length() == 0 ? name : name + "@" + version; }
+    // A mod or plugin, from Modrinth or CurseForge: its project, by slug or ID, and its version, on
+    // Modrinth by version number or ID, on CurseForge by file ID, file name or display name; empty for
+    // the newest.
+    public record Project(string name, string version, bit curseforge) {
+        // As the start reads it: slug, or slug@version, and curseforge: before CurseForge's.
+        string spec() { return (curseforge ? "curseforge:" : "") + (version.length() == 0 ? name : name + "@" + version); }
     }
 
     // The settings, which the methods of their names give: each field is named apart from its method,
@@ -85,7 +86,7 @@ abstract class Service<T> {
     // That version of it: its version number as Modrinth has it, whole ("v5.5.71-bukkit"), or its
     // version ID.
     public T plugin(string project, string version) {
-        plugins.add(new Project(project, version));
+        plugins.add(new Project(project, version, false));
         return self;
     }
 
@@ -125,6 +126,7 @@ abstract class Service<T> {
     private<Server, Proxy> bit ownsSecret() { return false; }
     private<Server, Proxy> string serversToml() { return ""; }
     private<Server, Proxy> string secretVariable() { return ""; }    // where the server finds the secret
+    private<Server, Proxy> string curseforgeKeyFile() { return ""; } // the API key's file, if it has CurseForge mods
 
     // The port it listens on: the one given, or its own.
     private<Server, Proxy> int listenPort() {
@@ -208,14 +210,15 @@ abstract class Service<T> {
 
     private<Server, Proxy> void checkProject(Project p, string kind) {
         string about = "Minecraft server " + name + ": ";
+        string site = p.curseforge ? "CurseForge" : "Modrinth";
         int at = p.name.indexOf('@');
         if (at > 0) {
-            throw new IllegalArgumentException(about + "no Modrinth project \"" + p.name + "\": a version is "
+            throw new IllegalArgumentException(about + "no " + site + " project \"" + p.name + "\": a version is "
                 + kind + "'s second argument, " + kind + "(\"" + p.name.substring(0, at) + "\", \""
                 + p.name.substring(at + 1, p.name.length()) + "\")");
         }
         if (p.name.length() == 0 || !plain(p.name, ".-_+")) {
-            throw new IllegalArgumentException(about + "no Modrinth project \"" + p.name + "\"");
+            throw new IllegalArgumentException(about + "no " + site + " project \"" + p.name + "\"");
         }
         if (p.version.contains("\t") || p.version.contains("\n")) {
             throw new IllegalArgumentException(about + "no version \"" + p.version + "\" of " + p.name);
@@ -273,6 +276,7 @@ abstract class Service<T> {
         b.append("OWN_SECRET=").append(ownsSecret() ? "1" : "0").append('\n');
         b.append("SERVERS=").append(sh(serversToml())).append('\n');
         b.append("CONFIGS=").append(sh(configsJson())).append('\n');
+        b.append("CURSEFORGE_KEY=").append(sh(curseforgeKeyFile())).append('\n');
         b.append(PREPARE);
         return b.toString();
     }
@@ -352,12 +356,16 @@ abstract class Service<T> {
         fail() { log "$*"; exit 1; }
         get() { curl -fsSL --retry 3 --retry-delay 2 -A "$UA" "$@"; }
 
-        # fetch URL FILE ALGORITHM CHECKSUM: the file, checked, put in place only when it is whole
+        # fetch URL FILE ALGORITHM CHECKSUM [SIZE]: the file, checked, put in place only when it is whole
         fetch() {
           get -o "$2.part" "$1" || fail "can't download $1"
           if [ -n "$4" ] && [ "$("$3sum" "$2.part" | cut -d ' ' -f 1)" != "$4" ]; then
             rm -f "$2.part"
             fail "$1: the download's $3 isn't $4"
+          fi
+          if [ -n "${5:-}" ] && [ "$(stat -c %s "$2.part")" != "$5" ]; then
+            rm -f "$2.part"
+            fail "$1: the download isn't the $5 bytes it should be"
           fi
           mv -f "$2.part" "$2"
         }
@@ -460,6 +468,124 @@ abstract class Service<T> {
         fi
         MC=$(cat .seal-mc/minecraft)
 
+        # CurseForge's API, with the key: from a file, to stay out of the Nix store, and to curl through a
+        # file descriptor, to stay off a command line other users can see.
+        CURSEFORGE_API=https://api.curseforge.com/v1
+        cfget() { get -H @<(printf 'x-api-key: %s\\n' "$(cat -- "$CURSEFORGE_KEY")") "$CURSEFORGE_API/$1"; }
+
+        # curseforge_site PROJECT FILE: as curseforge below, with no API key, through CurseForge's own site,
+        # whose lists of a project's files ask for none. It knows projects only by ID, and gives no hash,
+        # so only the file's size is checked, and it can't say whether the author allows this.
+        CURSEFORGE_SITE=https://www.curseforge.com/api/v1
+        curseforge_site() {
+          local project=$1 pin=$2 flavor="" index=0 page here matched="" total file
+          case "$LOADER" in
+            forge) flavor=1 ;;
+            fabric) flavor=4 ;;
+            neoforge) flavor=6 ;;
+          esac
+          case "$pin" in
+            "" | *[!0-9]*)
+              while :; do
+                page=$(get "$CURSEFORGE_SITE/mods/$project/files?pageIndex=$index&pageSize=50&sort=dateCreated&sortDescending=true&gameFlavorId=$flavor") \
+                  || fail "CurseForge's site has no project $project, or refused: its ID is on its page, or give an API key"
+                here=$(jq -c --arg mc "$MC" '.data[] | select((.gameVersions | index($mc)) and .isEarlyAccessContent != true)' <<<"$page")
+                if [ -n "$here" ]; then matched+=$here$'\n'; fi
+                total=$(jq -r '.pagination.totalCount // 0' <<<"$page")
+                index=$((index + 1))
+                if [ $((index * 50)) -ge "$total" ]; then break; fi
+                # Newest first: a release is the one to take, a page with none for this version is past
+                # them, and a file named is found. It spares a site not meant for this.
+                if [ -n "$pin" ]; then
+                  if [ -n "$here" ] && jq -se --arg pin "$pin" 'any(.fileName == $pin or .displayName == $pin)' <<<"$here" > /dev/null; then break; fi
+                elif [ -z "$here" ]; then
+                  if [ -n "$matched" ]; then break; fi
+                elif jq -se 'any(.releaseType == 1)' <<<"$here" > /dev/null; then
+                  break
+                fi
+              done
+              file=$(jq -sc --arg pin "$pin" '(if $pin != "" then map(select(.fileName == $pin or .displayName == $pin))
+                else map(select(.releaseType == 1)) + map(select(.releaseType == 2)) + map(select(.releaseType == 3)) end)
+                | .[0] // empty' <<<"$matched")
+              ;;
+            *)
+              file=$(get "$CURSEFORGE_SITE/mods/$project/files/$pin") || fail "CurseForge has no file $pin of $project"
+              file=$(jq -c '.data // empty' <<<"$file")
+              ;;
+          esac
+          [ -n "$file" ] || fail "$project has no file${pin:+ $pin} for $LOADER $MC on CurseForge"
+          name=$(jq -r .fileName <<<"$file")
+          label="$(jq -r .displayName <<<"$file") (no API key: its size alone is checked)"
+          url="$CURSEFORGE_SITE/mods/$project/files/$(jq -r .id <<<"$file")/download"
+          algo=sha1
+          sum=""
+          size=$(jq -r '.fileLength // empty' <<<"$file")
+        }
+
+        # curseforge PROJECT[@FILE]: the file to take from CurseForge, into sync's name, url, algo, sum and
+        # label. Of the files for this loader and Minecraft version, the newest release, or else beta,
+        # or else alpha, as CurseForge's site offers; or the one named by its ID, file name or display name.
+        curseforge() {
+          local project=${1%%@*} pin="" info id type="" index=0 page total all="" file
+          if [ "$1" != "$project" ]; then pin=${1#*@}; fi
+          slug=$project
+          if [ -z "$CURSEFORGE_KEY" ]; then
+            curseforge_site "$project" "$pin"
+            return
+          fi
+          [ -r "$CURSEFORGE_KEY" ] || fail "$project is from CurseForge, and there is no API key to read in $CURSEFORGE_KEY"
+          local refused="CurseForge didn't answer about $project: is the API key in $CURSEFORGE_KEY right?"
+          case "$project" in
+            *[!0-9]*)
+              info=$(cfget "mods/search?gameId=432&classId=6&slug=$project") || fail "$refused"
+              info=$(jq -c --arg s "$project" '[.data[] | select(.slug == $s)][0] // empty' <<<"$info")
+              ;;
+            *)
+              info=$(cfget "mods/$project") || fail "$refused"
+              info=$(jq -c '.data // empty' <<<"$info")
+              ;;
+          esac
+          [ -n "$info" ] || fail "CurseForge has no mod $project"
+          id=$(jq -r .id <<<"$info")
+          case "$LOADER" in
+            forge) type=1 ;;
+            fabric) type=4 ;;
+            neoforge) type=6 ;;
+          esac
+          case "$pin" in
+            "" | *[!0-9]*)
+              while :; do
+                page=$(cfget "mods/$id/files?gameVersion=$MC&modLoaderType=$type&index=$index&pageSize=50") || fail "$refused"
+                all+=$(jq -c '.data[]' <<<"$page")$'\\n'
+                total=$(jq -r '.pagination.totalCount // 0' <<<"$page")
+                index=$((index + 50))
+                if [ "$index" -ge "$total" ] || [ "$index" -ge 9950 ]; then break; fi
+              done
+              file=$(jq -sc --arg pin "$pin" 'map(select(.isServerPack != true and .isAvailable != false and .isEarlyAccessContent != true))
+                | sort_by(.fileDate) | reverse
+                | (if $pin != "" then map(select(.fileName == $pin or .displayName == $pin))
+                   else map(select(.releaseType == 1)) + map(select(.releaseType == 2)) + map(select(.releaseType == 3)) end)
+                | .[0] // empty' <<<"$all")
+              ;;
+            *)
+              file=$(cfget "mods/$id/files/$pin") || fail "CurseForge has no file $pin of $project"
+              file=$(jq -c '.data // empty' <<<"$file")
+              ;;
+          esac
+          [ -n "$file" ] || fail "$project has no file${pin:+ $pin} for $LOADER $MC on CurseForge"
+          name=$(jq -r .fileName <<<"$file")
+          label=$(jq -r .displayName <<<"$file")
+          url=$(jq -r '.downloadUrl // empty' <<<"$file")
+          [ -n "$url" ] || fail "$project's author doesn't allow downloads through CurseForge's API: put it in mods/ by hand"
+          url=${url// /%20}
+          algo=sha1
+          sum=$(jq -r '[.hashes[]? | select(.algo == 1)][0].value // empty' <<<"$file")
+          if [ -z "$sum" ]; then
+            algo=md5
+            sum=$(jq -r '[.hashes[]? | select(.algo == 2)][0].value // empty' <<<"$file")
+          fi
+        }
+
         # sync DIR LOADERS GAMES SPEC...: the Modrinth projects named, in DIR. A file this put there
         # before, which no project names now, goes; LOADERS and GAMES are JSON lists, or GAMES null.
         # The files chosen are kept, unless autoUpdate, or the loader or Minecraft version they were
@@ -473,7 +599,7 @@ abstract class Service<T> {
           : > "$next"
           local again=$AUTO_UPDATE
           if [ "$(cat "$made" 2>/dev/null)" != "$LOADER $MC" ]; then again=1; fi
-          local spec slug pin old query versions v file name
+          local spec slug pin old query versions v file name url algo sum label size
           for spec in "$@"; do
             slug=${spec%%@*}
             pin=
@@ -483,17 +609,27 @@ abstract class Service<T> {
               printf '%s\\t%s\\n' "$spec" "$old" >> "$next"
               continue
             fi
-            query="loaders=$(jq -rn --argjson v "$loaders" '$v | tojson | @uri')"
-            if [ "$games" != null ]; then query="$query&game_versions=$(jq -rn --argjson v "$games" '$v | tojson | @uri')"; fi
-            versions=$(get "https://api.modrinth.com/v2/project/$slug/version?$query") || fail "Modrinth has no project $slug"
-            v=$(jq -c --arg pin "$pin" '(if $pin != "" then map(select(.version_number == $pin or .id == $pin))
-              else map(select(.version_type == "release")) + . end) | .[0] // empty' <<<"$versions")
-            [ -n "$v" ] || fail "$slug has no version${pin:+ $pin} for $LOADER $MC on Modrinth"
-            file=$(jq -c '(.files | map(select(.primary))) + .files | .[0]' <<<"$v")
-            name=$(jq -r .filename <<<"$file")
+            size=""
+            if [ "$spec" != "${spec#curseforge:}" ]; then
+              curseforge "${spec#curseforge:}"
+            else
+              query="loaders=$(jq -rn --argjson v "$loaders" '$v | tojson | @uri')"
+              if [ "$games" != null ]; then query="$query&game_versions=$(jq -rn --argjson v "$games" '$v | tojson | @uri')"; fi
+              versions=$(get "https://api.modrinth.com/v2/project/$slug/version?$query") || fail "Modrinth has no project $slug"
+              v=$(jq -c --arg pin "$pin" '(if $pin != "" then map(select(.version_number == $pin or .id == $pin))
+                else map(select(.version_type == "release")) + . end) | .[0] // empty' <<<"$versions")
+              [ -n "$v" ] || fail "$slug has no version${pin:+ $pin} for $LOADER $MC on Modrinth"
+              file=$(jq -c '(.files | map(select(.primary))) + .files | .[0]' <<<"$v")
+              name=$(jq -r .filename <<<"$file")
+              url=$(jq -r .url <<<"$file")
+              algo=sha512
+              sum=$(jq -r .hashes.sha512 <<<"$file")
+              label=$(jq -r .version_number <<<"$v")
+            fi
+            case "$name" in */* | . | ..) fail "$slug's file has no usable name: $name" ;; esac
             if [ ! -f "$dir/$name" ]; then
-              log "$dir: $slug $(jq -r .version_number <<<"$v")"
-              fetch "$(jq -r .url <<<"$file")" "$dir/$name" sha512 "$(jq -r .hashes.sha512 <<<"$file")"
+              log "$dir: $slug $label"
+              fetch "$url" "$dir/$name" "$algo" "$sum" "$size"
             fi
             if [ -n "$old" ] && [ "$old" != "$name" ]; then rm -f "$dir/$old"; fi
             printf '%s\\t%s\\n' "$spec" "$name" >> "$next"

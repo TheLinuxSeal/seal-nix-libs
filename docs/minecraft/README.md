@@ -2,7 +2,7 @@
 
 Minecraft servers and Velocity proxies on NixOS, from a [seal-nix](https://github.com/TheLinuxSeal/seal-nix)
 configuration. Each server is a systemd service, `minecraft-<name>`, that downloads its loader and its
-mods or plugins (from Modrinth) when it starts, and keeps them until the configuration changes.
+mods or plugins (from Modrinth or CurseForge) when it starts, and keeps them until the configuration changes.
 
 ```java
 import sealnix.*;
@@ -15,8 +15,8 @@ class Main {
             .minecraftVersion("26.3")
             .acceptEula()                        // Mojang's EULA: https://aka.ms/MinecraftEULA
             .memory("4G")
-            .mod("fabric-api")
-            .mod("lithium")
+            .modrinthMod("fabric-api")
+            .modrinthMod("lithium")
             .property("difficulty", "hard")
             .install();
     }
@@ -67,7 +67,9 @@ its folder, `/var/lib/minecraft/<name>`: letters, digits, `-` and `_`.
 | `.acceptEula()` | `Server` | not accepted: an error | [server.properties](servers.md#serverproperties-and-the-eula) |
 | `.property(key, value)` | `Server` | none | [server.properties](servers.md#serverproperties-and-the-eula) |
 | `.config(file)` | all | none | [Config files](servers.md#config-files) |
-| `.mod(project)`, `.mod(project, version)` | `Server`: Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
+| `.modrinthMod(project)`, `.modrinthMod(project, version)` | `Server`: Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
+| `.curseforgeMod(project)`, `.curseforgeMod(project, file)` | `Server`: Fabric, Forge, NeoForge | none | [From CurseForge](servers.md#from-curseforge) |
+| `Server.setCurseForgeKeyFile(file)` | once, for all servers | none: through CurseForge's website, by project ID | [From CurseForge](servers.md#from-curseforge) |
 | `.plugin(project)`, `.plugin(project, version)` | `Server` on Paper, `Proxy` | none | [Mods and plugins](servers.md#mods-and-plugins) |
 | `.openFirewall(open)` | all | `true` | [Ports](servers.md#ports-and-the-firewall) |
 | `.autoUpdate()` | all | off | [Updates](servers.md#updates) |
@@ -79,15 +81,15 @@ its folder, `/var/lib/minecraft/<name>`: letters, digits, `-` and `_`.
 | `.forcedHost(hostname, server)` | `Proxy` | none | [Forced hosts](proxy.md#forced-hosts) |
 | `.install()` | all | | checks it and installs it; a proxy's, with the servers behind it |
 
-"all" is a `Server` and a `Proxy`. A setting its type doesn't have (`.mod()` on a `Proxy`) doesn't compile.
+"all" is a `Server` and a `Proxy`. A setting its type doesn't have (`.modrinthMod()` on a `Proxy`) doesn't compile.
 One its loader can't use (a mod on Paper), or a value it can't take, is an error when the configuration
 builds; [Errors](errors.md) lists them all.
 
 ## What it doesn't do
 
-- **Mod dependencies.** Modrinth's dependencies aren't followed: name every mod a mod needs, as
+- **Mod dependencies.** Modrinth's and CurseForge's dependencies aren't followed: name every mod a mod needs, as
   `fabric-api` for most Fabric mods. (A Fabric server behind a proxy gets `fabric-api` with
   FabricProxy-Lite.)
-- **Modpacks, datapacks, resource packs**, and mods from anywhere but Modrinth. A file put in `mods/`
+- **Modpacks, datapacks, resource packs**, and mods from anywhere but Modrinth and CurseForge. A file put in `mods/`
   or `plugins/` by hand is kept, and left alone.
 - **Backups.** The worlds are in `/var/lib/minecraft/<name>`; back that up as any folder.

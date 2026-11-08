@@ -57,8 +57,8 @@ takes a few minutes, and writes `.seal-mc/installer.log`.
 ## Mods and plugins
 
 ```java
-.mod("fabric-api")                          // the newest release for this loader and Minecraft version
-.mod("lithium", "mc26.3-0.26.3-fabric")     // that version of it, by its version number
+.modrinthMod("fabric-api")                          // the newest release for this loader and Minecraft version
+.modrinthMod("lithium", "mc26.3-0.26.3-fabric")     // that version of it, by its version number
 .plugin("luckperms")
 .plugin("luckperms", "v5.5.71-bukkit")
 ```
@@ -71,7 +71,7 @@ isn't Lithium's `mc26.3-0.26.3-fabric`.
 
 | Server | Takes | Chosen among Modrinth's versions for |
 | --- | --- | --- |
-| Fabric, Forge, NeoForge | `.mod()`, into `mods/` | that loader, and that Minecraft version |
+| Fabric, Forge, NeoForge | `.modrinthMod()`, into `mods/` | that loader, and that Minecraft version |
 | Paper | `.plugin()`, into `plugins/` | Paper, Spigot or Bukkit, and that Minecraft version |
 | Velocity | `.plugin()`, into `plugins/` | Velocity, any Minecraft version |
 
@@ -88,8 +88,47 @@ start asks Modrinth nothing. They are chosen again:
 A mod or plugin the configuration no longer names is removed, if this put it there. One put in
 `mods/` or `plugins/` by hand isn't, and is never touched.
 
-Modrinth's dependencies aren't followed: name every mod a mod needs. A server behind a Velocity proxy
+Modrinth's and CurseForge's dependencies aren't followed: name every mod a mod needs. A server behind a Velocity proxy
 gets what its forwarding needs by itself: [Servers behind a proxy](proxy.md#servers-behind-a-proxy).
+
+### From CurseForge
+
+```java
+Server.setCurseForgeKeyFile("/run/secrets/curseforge");     // once, before the first install()
+
+new Server("survival")
+    .loader(Loader.FABRIC)
+    .minecraftVersion("26.3")
+    .acceptEula()
+    .curseforgeMod("appleskin")                             // the newest, by its slug or ID
+    .curseforgeMod("jei", "jei-26.3-fabric-31.17.0.109.jar")   // that file of it
+    .curseforgeMod("306612")                                // by its project ID, which needs no key
+    .install();
+```
+
+`.curseforgeMod(project)` takes a mod from CurseForge, by its slug (the name in its address,
+curseforge.com/minecraft/mc-mods/**appleskin**) or its project ID: the newest file for the server's loader and
+Minecraft version, a release, or else a beta, or else an alpha, as CurseForge's site offers. A second
+argument names one file: its file ID, its file name, or its display name, whole. `.modrinthMod()` and
+`.curseforgeMod()` can be mixed on one server, and files are kept and chosen again as above. Plugins
+come from Modrinth alone.
+
+It works with an API key or without one, and an API key is the better way:
+
+| | With a key | Without one |
+| --- | --- | --- |
+| Goes through | CurseForge's API | CurseForge's website, whose file lists ask for no key |
+| A mod is given by | its slug or its project ID | its project ID alone, as the site can't look up a slug |
+| The file is checked against | CurseForge's sha1 (or md5) | its size alone: the site gives no hash |
+| An author who opted out of third-party downloads | stops the start, with a message: put the file in `mods/` by hand | can't be seen, and the file is downloaded |
+| It lasts | documented | the site's API is undocumented, and can change or refuse at any time |
+
+A key comes from CurseForge's [developer console](https://console.curseforge.com/).
+`Server.setCurseForgeKeyFile(file)`, once in the configuration and before the first `install()`, says
+where it is: the path of a file that holds it, on the machine, that the user `minecraft` can read. With
+sops-nix, `owner = "minecraft"`; not in `/home`, which the services can't see. The key itself never goes
+in the configuration, which would put it in the Nix store, and in git. A server only reads it when it
+has something to ask CurseForge, so one whose mods are all chosen starts without it.
 
 ## server.properties and the EULA
 

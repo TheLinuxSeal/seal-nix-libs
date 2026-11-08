@@ -5,13 +5,17 @@ import sealnix.libs.minecraft.*;
 // here behind it, and one elsewhere, by its address.
 class Main {
     static void main() {
+        Server.setCurseForgeKeyFile("/run/secrets/curseforge");
+
         new Server("survival")
             .loader(Loader.FABRIC)
             .minecraftVersion("26.3")
             .acceptEula()
             .memory("4G")
-            .mod("fabric-api")
-            .mod("lithium", "mc26.3-0.26.3-fabric")          // a version, by its version number
+            .modrinthMod("fabric-api")
+            .modrinthMod("lithium", "mc26.3-0.26.3-fabric")          // a version, by its version number
+            .curseforgeMod("appleskin")                              // from CurseForge
+            .curseforgeMod("jei", "jei-26.3-fabric-31.17.0.109.jar")  // a file of it, by its name
             .property("motd", "A Seal server")
             .config(new ConfigFile("config/mymod.toml").set("general.threads", 4).set("general.fastMath", true))
             .config(new ConfigFile("config/other.json5").set("a\\.b.c", "x"))
@@ -23,7 +27,7 @@ class Main {
             .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit")
             .config(new ConfigFile("plugins/LuckPerms/config.yml").set("server", "lobby"));
         var smp = new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3")
-            .acceptEula().mod("lithium");
+            .acceptEula().modrinthMod("lithium");
         smp.port(25567);                                     // a server given to the proxy can still change
 
         new Proxy("proxy")

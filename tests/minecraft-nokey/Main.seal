@@ -1,0 +1,14 @@
+import sealnix.*;
+import sealnix.libs.minecraft.*;
+
+// A CurseForge mod with no API key: by its project ID, through CurseForge's website.
+class Main {
+    static void main() {
+        new Server("survival")
+            .loader(Loader.FABRIC)
+            .minecraftVersion("26.3")
+            .acceptEula()
+            .curseforgeMod("248787")
+            .install();
+    }
+}

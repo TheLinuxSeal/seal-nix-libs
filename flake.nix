@@ -51,7 +51,9 @@
           assert lib.hasInfix "export PAPER_VELOCITY_SECRET=$secret" s.minecraft-lobby.script;
           assert lib.hasInfix "export FABRIC_PROXY_SECRET=$secret" s.minecraft-smp.script;
           assert lib.hasInfix "MODS=('lithium' 'fabric-api' 'fabricproxy-lite')" s.minecraft-smp.preStart;
-          assert lib.hasInfix "MODS=('fabric-api' 'lithium@mc26.3-0.26.3-fabric')" s.minecraft-survival.preStart;
+          assert lib.hasInfix "MODS=('fabric-api' 'lithium@mc26.3-0.26.3-fabric' 'curseforge:appleskin' 'curseforge:jei@jei-26.3-fabric-31.17.0.109.jar')" s.minecraft-survival.preStart;
+          assert lib.hasInfix "CURSEFORGE_KEY='/run/secrets/curseforge'" s.minecraft-survival.preStart;
+          assert lib.hasInfix "CURSEFORGE_KEY=''" s.minecraft-smp.preStart;
           assert lib.hasInfix "PLUGINS=('luckperms@v5.5.71-bukkit')" s.minecraft-lobby.preStart;
           assert lib.hasInfix ''{"path":"config/mymod.toml","format":"toml","text":null,"set":[{"key":["general","threads"],"value":4},{"key":["general","fastMath"],"value":true}]}'' s.minecraft-survival.preStart;
           assert lib.hasInfix ''{"key":["a.b","c"],"value":"x"}'' s.minecraft-survival.preStart;
@@ -68,6 +70,13 @@
             ${lib.concatStrings (lib.mapAttrsToList (name: unit: parse "${name}-preStart" unit.preStart + parse "${name}-script" unit.script) s)}
             touch $out
           '';
+
+        # a CurseForge mod by its project ID, with no API key
+        minecraft-nokey =
+          let start = (settings (generate system ./tests/minecraft-nokey/Main.seal)).systemd.services.minecraft-survival.preStart; in
+          assert lib.hasInfix "MODS=('curseforge:248787')" start;
+          assert lib.hasInfix "CURSEFORGE_KEY=''" start;
+          pkgs.runCommand "minecraft-nokey" { } "touch $out";
       } // lib.optionalAttrs (system == "x86_64-linux") {
         # examples/minecraft, as its flake makes it but with this flake's libraries: the whole system,
         # and its virtual machine, evaluated

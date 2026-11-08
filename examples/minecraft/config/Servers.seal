@@ -22,8 +22,8 @@ class Servers {
             .acceptEula()
             .port(25567)
             .memory("4G")
-            .mod("lithium")                                      // fabric-api and FabricProxy-Lite come with the proxy
-            .mod("ferrite-core")
+            .modrinthMod("lithium")                                      // fabric-api and FabricProxy-Lite come with the proxy
+            .modrinthMod("ferrite-core")
             .property("difficulty", "hard")
             .property("view-distance", "12");
 

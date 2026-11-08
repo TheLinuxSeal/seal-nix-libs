@@ -5,7 +5,7 @@ set up a whole service in a few lines of Seal.
 
 | Library | Import | | Docs | Example |
 | --- | --- | --- | --- | --- |
-| [`minecraft`](lib/sealnix/libs/minecraft/Server.seal) | `import sealnix.libs.minecraft.*;` | Minecraft servers (vanilla, Fabric, Forge, NeoForge, Paper) and Velocity proxies, with their mods and plugins from Modrinth | [`docs/minecraft`](docs/minecraft) | [`examples/minecraft`](examples/minecraft) |
+| [`minecraft`](lib/sealnix/libs/minecraft/Server.seal) | `import sealnix.libs.minecraft.*;` | Minecraft servers (vanilla, Fabric, Forge, NeoForge, Paper) and Velocity proxies, with their mods from Modrinth or CurseForge and plugins from Modrinth | [`docs/minecraft`](docs/minecraft) | [`examples/minecraft`](examples/minecraft) |
 
 A library's docs have every setting it has; its file says the gist, at its top. An example is a whole
 machine that uses one, as a flake to start from: `nix flake init -t github:TheLinuxSeal/seal-nix-libs#minecraft`.

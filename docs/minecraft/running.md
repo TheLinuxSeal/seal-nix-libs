@@ -60,6 +60,8 @@ network, unless `autoUpdate()` is on.
 | Forge's and NeoForge's installers | their Maven repositories | the repository's sha1, when it has one |
 | Paper, Velocity | PaperMC | its sha256 |
 | Mods and plugins | Modrinth | its sha512 |
+| Mods | CurseForge, with an API key | its sha1, or md5 |
+| Mods | CurseForge's website, without one | its size alone: the site gives no hash |
 
 A download goes to a `.part` file, and takes the file's place only once it is whole and checked; a
 failed one is tried three times, then the start fails, and the service tries again 10 seconds later.
@@ -110,6 +112,8 @@ firewall, so an RCON client on the machine reaches it: `mcrcon -P 25575 -p <pass
 - **The Nix store is public to the machine.** Everything the configuration says (properties, config
   files, JVM arguments, names, addresses) is in it, readable by every user. Passwords and secrets go in files on
   the machine, as the forwarding secret does.
+- **The CurseForge API key** is never in the store, and on no command line: it is read from its file
+  when a server has something to ask, and only CurseForge's API gets it, not its download servers.
 - **The forwarding secret** is never in the store: the proxy's own is `0600`, a given one is the
   file it is, and the servers behind a proxy read it as they start. Paper writes it into its config,
   so those servers' folders are `0750`.

@@ -15,8 +15,9 @@ import seal.util.List;
 //         .minecraftVersion("26.3")                 // Mojang's version, or "latest"
 //         .acceptEula()                             // Mojang's EULA: https://aka.ms/MinecraftEULA
 //         .memory("4G")
-//         .mod("fabric-api")                        // a Modrinth project, by its slug or ID
-//         .mod("lithium", "mc26.3-0.26.3-fabric")   // one version of it, by version number or ID
+//         .modrinthMod("fabric-api")                // a Modrinth project, by its slug or ID
+//         .modrinthMod("lithium", "mc26.3-0.26.3-fabric")  // one version of it, by version number or ID
+//         .curseforgeMod("jei")                     // a CurseForge project, by its slug or ID
 //         .property("motd", "A Seal server")        // server.properties
 //         .install();
 //
@@ -31,6 +32,10 @@ import seal.util.List;
 // configuration changed, or autoUpdate() asks for the newest at every start; a new loader or Minecraft
 // version chooses every mod and plugin again. Mods and plugins this put there, which the configuration
 // no longer names, are removed; ones put there by hand are kept.
+//
+// CurseForge's API takes a key: Server.setCurseForgeKeyFile("/run/secrets/curseforge"), once, before
+// the first install(). The file is read on the machine, so the key stays out of the Nix store. Without
+// one, a mod comes through CurseForge's website instead, by its project ID alone, its size checked.
 //
 // A mod's or plugin's own config file is a ConfigFile, whose settings are set at every start, in a
 // .toml, .yaml, .json, .json5 or .properties file; a key the configuration no longer sets goes:
@@ -52,6 +57,9 @@ class Server extends(Service<Server>) {
     List<string> propertyValues = new List();
 
     private<Proxy> Proxy proxy = null;       // the proxy this is behind, once given to one
+
+    static string curseforgeKeyPath = "";    // the file with the CurseForge API key, for every server
+    static bit installedWithoutKey = false;  // a server has taken CurseForge's mods without it
 
     // A server, by its name: letters, digits, - and _. Its service is minecraft-<name>, and its folder
     // /var/lib/minecraft/<name>.
@@ -79,16 +87,48 @@ class Server extends(Service<Server>) {
         return this;
     }
 
-    // Fabric, Forge, NeoForge: a mod, a Modrinth project by its slug or ID, in its newest version for
-    // the server's loader and Minecraft version.
-    public Server mod(string project) {
-        return mod(project, "");
+    // The file with the CurseForge API key, once for the whole configuration, before the first
+    // install(): a path, as "/run/secrets/curseforge", that the user minecraft can read, so that the key
+    // itself stays out of the Nix store. CurseForge's developer console gives the key.
+    public static void setCurseForgeKeyFile(string file) {
+        if (!file.startsWith("/") || !plain(file, "/._-+@")) {
+            throw new IllegalArgumentException("the CurseForge API key is given by the path of a file that holds it, as "
+                + "\"/run/secrets/curseforge\", so that the key stays out of the Nix store");
+        }
+        if (installedWithoutKey) {
+            throw new IllegalStateException("the CurseForge API key's file comes after a server with CurseForge mods was "
+                + "installed without it: set it before the first install()");
+        }
+        if (curseforgeKeyPath.length() > 0 && curseforgeKeyPath != file) {
+            throw new IllegalStateException("the CurseForge API key's file is set twice: \"" + curseforgeKeyPath + "\" and \""
+                + file + "\"; set it once");
+        }
+        curseforgeKeyPath = file;
+    }
+
+    // Fabric, Forge, NeoForge: a mod from Modrinth, by its slug or ID, in its newest version for the
+    // server's loader and Minecraft version.
+    public Server modrinthMod(string project) {
+        return modrinthMod(project, "");
     }
 
     // That version of it: its version number as Modrinth has it, whole ("mc26.3-0.26.3-fabric"), or
     // its version ID.
-    public Server mod(string project, string version) {
-        mods.add(new Service.Project(project, version));
+    public Server modrinthMod(string project, string version) {
+        mods.add(new Service.Project(project, version, false));
+        return this;
+    }
+
+    // A mod from CurseForge, by its slug or ID, in its newest file for the server's loader and
+    // Minecraft version. Without setCurseForgeKeyFile(), only its ID will do.
+    public Server curseforgeMod(string project) {
+        return curseforgeMod(project, "");
+    }
+
+    // That file of it: its file ID, its file name ("jei-26.3-fabric-31.17.0.109.jar"), or its display
+    // name, whole.
+    public Server curseforgeMod(string project, string file) {
+        mods.add(new Service.Project(project, file, true));
         return this;
     }
 
@@ -129,6 +169,22 @@ class Server extends(Service<Server>) {
     private<Service> bit eulaAccepted() { return eula; }
     private<Service> string behindMode() { return proxy != null ? proxy.forwardingMode.name() : ""; }
     private<Service> string secretPath() { return proxy != null ? proxy.secretPath() : ""; }
+    private<Service> string curseforgeKeyFile() { return usesCurseforge() ? curseforgeKeyPath : ""; }
+
+    // Whether it is all digits, as a CurseForge project ID.
+    static bit digits(string s) {
+        for (int k = 0; k < s.length(); k++) {
+            if (s.charAt(k) < '0' || s.charAt(k) > '9') { return false; }
+        }
+        return s.length() > 0;
+    }
+
+    bit usesCurseforge() {
+        for (Service.Project m : mods) {
+            if (m.curseforge) { return true; }
+        }
+        return false;
+    }
 
     // The Java the Minecraft version needs: 25 from 26.1, 21 from 1.20.5, 17 from 1.17, else 8.
     private<Service> Pkg defaultJava() {
@@ -163,7 +219,15 @@ class Server extends(Service<Server>) {
         if (!plugins.isEmpty() && loaderType != Loader.PAPER) {
             throw new IllegalArgumentException(about + describe() + " takes no plugins; Paper and Velocity do");
         }
-        for (Service.Project m : mods) { checkProject(m, "mod"); }
+        for (Service.Project m : mods) {
+            checkProject(m, m.curseforge ? "curseforgeMod" : "modrinthMod");
+            if (m.curseforge && curseforgeKeyPath.length() == 0 && !digits(m.name)) {
+                throw new IllegalStateException(about + "without an API key, CurseForge's site can't look up \"" + m.name
+                    + "\": give its project ID, curseforgeMod(\"238222\"), or the key, "
+                    + "Server.setCurseForgeKeyFile(\"/run/secrets/curseforge\"), once, before the first install()");
+            }
+            if (m.curseforge && curseforgeKeyPath.length() == 0) { installedWithoutKey = true; }
+        }
         for (int k = 0; k < propertyKeys.size(); k++) {
             if (!plain(propertyKeys.get(k), ".-_") || propertyValues.get(k).contains("\n")) {
                 throw new IllegalArgumentException(about + "no property " + propertyKeys.get(k));
@@ -203,7 +267,7 @@ class Server extends(Service<Server>) {
         List<Service.Project> list = copyOf(mods);
         if (loaderType == Loader.FABRIC && proxy != null && proxy.forwardingMode == Forwarding.MODERN) {
             for (string slug : ["fabric-api", "fabricproxy-lite"]) {
-                if (!names(list, slug)) { list.add(new Service.Project(slug, "")); }
+                if (!names(list, slug)) { list.add(new Service.Project(slug, "", false)); }
             }
         }
         return specs(list);

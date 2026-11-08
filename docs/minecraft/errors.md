@@ -10,7 +10,12 @@ anything changes on the machine. The build's log says, after `uncaught IllegalAr
 `loaderVersion()`, a mod or a pin exists is found out only when the server starts
 ([When a server starts](#when-a-server-starts)).
 
-A setting its type doesn't have doesn't compile, and Seal says so, as `Proxy has no method mod` or
+`Server.setCurseForgeKeyFile()` says what is wrong by itself, naming no server: `the CurseForge API key is
+given by the path of a file that holds it`, for what isn't an absolute path, `the CurseForge API key's
+file is set twice`, for two different files, and `comes after a server with CurseForge mods was installed
+without it`, for setting it too late.
+
+A setting its type doesn't have doesn't compile, and Seal says so, as `Proxy has no method modrinthMod` or
 `Server has no method forwarding`. `Loader has no member VELOCITY` means a proxy is a `new Proxy(name)`.
 
 ### Any server
@@ -25,11 +30,12 @@ A setting its type doesn't have doesn't compile, and Seal says so, as `Proxy has
 | `memory is a size, as "4G" or "512M"` | `memory()` isn't a number and a unit. |
 | `no port <port>` | The port isn't between 1 and 65535. |
 | `a server runs only once its owner accepts Mojang's EULA (https://aka.ms/MinecraftEULA): acceptEula()` | Every `Server` needs `.acceptEula()`. |
-| `<loader> takes no mods; Fabric, Forge and NeoForge do` | `.mod()` on vanilla or Paper; Paper takes `.plugin()`. |
-| `<loader> takes no plugins; Paper and Velocity do` | `.plugin()` on vanilla, Fabric, Forge or NeoForge; those take `.mod()`. |
-| `no Modrinth project "<project>"` | A mod's or plugin's project has a character other than letters, digits, `.`, `-`, `_` and `+`, or is empty. |
-| `no Modrinth project "lithium@mc26.3-0.26.3-fabric": a version is mod's second argument, mod("lithium", "mc26.3-0.26.3-fabric")` | The old `"project@version"`: the version is an argument of its own now. |
+| `<loader> takes no mods; Fabric, Forge and NeoForge do` | `.modrinthMod()` or `.curseforgeMod()` on vanilla or Paper; Paper takes `.plugin()`. |
+| `<loader> takes no plugins; Paper and Velocity do` | `.plugin()` on vanilla, Fabric, Forge or NeoForge; those take `.modrinthMod()` or `.curseforgeMod()`. |
+| `no Modrinth project "<project>"`, `no CurseForge project "<project>"` | A mod's or plugin's project has a character other than letters, digits, `.`, `-`, `_` and `+`, or is empty. |
+| `no Modrinth project "lithium@mc26.3-0.26.3-fabric": a version is modrinthMod's second argument, modrinthMod("lithium", "mc26.3-0.26.3-fabric")` | The old `"project@version"`: the version is an argument of its own now. |
 | `no version "<version>" of <project>` | A mod's or plugin's version has a tab or a new line. |
+| `without an API key, CurseForge's site can't look up "<slug>": give its project ID, ...` | A `.curseforgeMod()` by slug, with no key. Give the ID, on the project's page, or the key: [From CurseForge](servers.md#from-curseforge). |
 | `no property <key>` | A property's key has a character other than letters, digits, `.`, `-` and `_`, or its value a new line. |
 | `is installed twice: install each server once, each with a name of its own` | `install()` twice, or two servers of one name. |
 
@@ -96,6 +102,15 @@ reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts wi
 | `Forge's installer failed; .seal-mc/installer.log says why` | The installer stopped; the log, in the server's folder, says why. | |
 | `NeoForge's installer failed; .seal-mc/installer.log says why` | The same, for NeoForge. | |
 | `PaperMC has no paper <version>, build <build>` | No Paper for that version (yet), or no such build; for a proxy, no such Velocity. | Another version or build. |
+| `<project> is from CurseForge, and there is no API key to read in <path>` | The file from `setCurseForgeKeyFile()` is missing, or not the user `minecraft`'s to read. | The file, or its owner. |
+| `CurseForge didn't answer about <project>: is the API key in <path> right?` | The key is wrong, or CurseForge or the network is down. | It tries again; or check the key. |
+| `CurseForge's site has no project <id>, or refused: its ID is on its page, or give an API key` | Without a key: the site didn't answer. It is undocumented, and can refuse. | It tries again; or give an API key. |
+| `<url>: the download isn't the <n> bytes it should be` | Without a key, a download of the wrong size. | It tries again. |
+| `CurseForge has no mod <project>` | No Minecraft mod of that slug or ID. | The slug, as in the project's address. |
+| `<project> has no file for <loader> <version> on CurseForge` | The mod has no file for that loader and Minecraft version. | Another mod, or another version. |
+| `<project> has no file <file> for <loader> <version> on CurseForge` | No file of that name or display name for that loader and Minecraft version. | The whole file name, or its file ID. |
+| `CurseForge has no file <id> of <project>` | No file of that ID. | The file ID, as in the file's address. |
+| `<project>'s author doesn't allow downloads through CurseForge's API: put it in mods/ by hand` | With a key: the author has opted out. | Download it, and put it in `mods/`. |
 | `Modrinth has no project <slug>` | No project of that slug or ID. | The slug, as in the project's address. |
 | `<slug> has no version for <loader> <version> on Modrinth` | The project has nothing for that loader and Minecraft version. | Another mod, or another version. |
 | `<slug> has no version <version> for <loader> <version> on Modrinth` | The version given isn't one of the project's version numbers or IDs, or isn't for that loader and Minecraft version. | The whole version number, as the project's Versions tab on Modrinth shows it. |
@@ -113,7 +128,7 @@ And from the server itself, in the same log:
 | --- | --- |
 | `FAILED TO BIND TO PORT`, `Address already in use` | Another server, or program, has the port: give one of them another. Servers on their own aren't checked for this when the configuration builds. |
 | `OutOfMemoryError` | The heap is too small for the world and mods: a bigger `memory()`. |
-| A mod's crash, after a start that chose again | A new version of a mod (from `autoUpdate()`, or a new Minecraft version) that doesn't work with the others: give the one that worked as its version, `.mod("lithium", "mc26.3-0.26.3-fabric")`. |
+| A mod's crash, after a start that chose again | A new version of a mod (from `autoUpdate()`, or a new Minecraft version) that doesn't work with the others: give the one that worked as its version, `.modrinthMod("lithium", "mc26.3-0.26.3-fabric")`. |
 
 A player turned away by a server behind a proxy (FabricProxy-Lite says `This server requires you to
 connect with Velocity.`) has connected to it without the proxy, or the proxy and the server have
