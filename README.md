@@ -3,12 +3,12 @@
 Seal libraries for [seal-nix](https://github.com/TheLinuxSeal/seal-nix) configurations: classes that
 set up a whole service in a few lines of Seal.
 
-| Library | Import | | Example |
-| --- | --- | --- | --- |
-| [`minecraft`](lib/minecraft/MinecraftServerUtil.seal) | `import minecraft.MinecraftServerUtil;` | Minecraft servers (vanilla, Fabric, Forge, NeoForge, Paper) and Velocity proxies, with their mods and plugins from Modrinth | [`examples/minecraft`](examples/minecraft) |
+| Library | Import | | Docs | Example |
+| --- | --- | --- | --- | --- |
+| [`minecraft`](lib/minecraft/MinecraftServerUtil.seal) | `import minecraft.MinecraftServerUtil;` | Minecraft servers (vanilla, Fabric, Forge, NeoForge, Paper) and Velocity proxies, with their mods and plugins from Modrinth | [`docs/minecraft`](docs/minecraft) | [`examples/minecraft`](examples/minecraft) |
 
-Each library's file says how to use it, at its top. An example is a whole machine that uses one, as
-a flake to start from: `nix flake init -t github:TheLinuxSeal/seal-nix-libs#minecraft`.
+A library's docs have every setting it has; its file says the gist, at its top. An example is a whole
+machine that uses one, as a flake to start from: `nix flake init -t github:TheLinuxSeal/seal-nix-libs#minecraft`.
 
 ## Using them
 
