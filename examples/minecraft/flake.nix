@@ -21,7 +21,7 @@
         ./hardware-configuration.nix
         ./vm.nix
         seal-nix.nixosModules.default
-        seal-nix-libs.nixosModules.default                  # import minecraft.MinecraftServerUtil;
+        seal-nix-libs.nixosModules.default                  # import minecraft.*;
         { seal-nix.src = ./config/Main.seal; }
       ];
     };

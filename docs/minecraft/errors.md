@@ -15,6 +15,9 @@ anything changes on the machine. The build's log says, after `uncaught IllegalAr
 | Error | Means |
 | --- | --- |
 | `a name is letters, digits, - and _` | The server's name has another character, or is empty. |
+| `no loader: loader(Loaders.FABRIC), say, or Loaders.VANILLA, FORGE, NEOFORGE, PAPER, or VELOCITY for a proxy` | The server has no `.loader()`. |
+| `no Minecraft version: minecraftVersion("26.3"), say, or minecraftVersion("latest")` | The server has no `.minecraftVersion()`. |
+| `a proxy takes no Minecraft version; its Velocity's own version is loaderVersion()'s` | `.minecraftVersion()` on a proxy. |
 | `no Minecraft version "<version>"` | The version has a character a version doesn't, or is empty. |
 | `no loader version "<version>"` | `loaderVersion()` has a character a version doesn't. |
 | `memory is a size, as "4G" or "512M"` | `memory()` isn't a number and a unit. |
@@ -50,7 +53,7 @@ These name the proxy, then the server: `Minecraft server proxy: lobby ...`.
 | --- | --- |
 | `is a proxy itself` | A proxy given to a proxy. |
 | `has the proxy's own name` | A server named as its proxy is. |
-| `is behind the proxy <proxy> already: a server is behind one proxy, built once` | The server is given to two proxies, or one proxy's builder is built twice. |
+| `is behind the proxy <proxy> already: a server is behind one proxy` | The server is given to two proxies. This one names the second proxy. |
 | `is installed on its own already: the proxy's install() installs it, so leave out its own` | The server's own `install()` came before its proxy's: leave it out. |
 | `and the proxy both have port <port>; give one another` | The server and its proxy have one port. |
 | `and <server> both have port <port>; give one another` | Two servers behind the proxy have one port. |
@@ -58,7 +61,7 @@ These name the proxy, then the server: `Minecraft server proxy: lobby ...`.
 | `is Paper <version>; behind a proxy, Paper is 1.19 or newer, whose config/paper-global.yml this sets` | Paper before 1.19 keeps its forwarding elsewhere: give it by its address, set up by hand. |
 
 And for the server itself: `Minecraft server <name> is behind the proxy <proxy>, whose install()
-installs it: leave out <name>'s own`, when its own `install()` comes after the proxy is built.
+installs it: leave out <name>'s own`, when its own `install()` comes after it is given to the proxy.
 
 ## When a server starts
 

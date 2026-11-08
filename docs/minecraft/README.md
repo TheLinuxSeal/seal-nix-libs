@@ -6,11 +6,13 @@ mods or plugins (from Modrinth) when it starts, and keeps them until the configu
 
 ```java
 import sealnix.*;
-import minecraft.MinecraftServerUtil;
+import minecraft.*;
 
 class Main {
     static void main() {
-        MinecraftServerUtil.fabric("survival", "26.3")
+        new Server("survival")
+            .loader(Loaders.FABRIC)
+            .minecraftVersion("26.3")
             .acceptEula()                        // Mojang's EULA: https://aka.ms/MinecraftEULA
             .memory("4G")
             .mod("fabric-api")
@@ -43,25 +45,19 @@ modules = [
 ];
 ```
 
-A Seal file that uses it imports it: `import minecraft.MinecraftServerUtil;`. The servers it defines
-then are `MinecraftServerUtil.Server`, and the forwarding modes `MinecraftServerUtil.Forwarding`.
+A Seal file that uses it imports the package, `import minecraft.*;`, which has three types: `Server`,
+`Loaders` (the loaders) and `Forwarding` (a proxy's forwarding modes).
 
 ## Every setting
 
-A server starts as a builder, from one of these, and each setting is a method that returns the builder,
-so they chain. `build()` checks them and gives the `Server`; `install()` installs it.
-
-| Start | Gives |
-| --- | --- |
-| `MinecraftServerUtil.vanilla(name, minecraftVersion)` | Mojang's server |
-| `MinecraftServerUtil.fabric(name, minecraftVersion)` | Fabric, with mods |
-| `MinecraftServerUtil.forge(name, minecraftVersion)` | Forge, with mods |
-| `MinecraftServerUtil.neoforge(name, minecraftVersion)` | NeoForge, with mods |
-| `MinecraftServerUtil.paper(name, minecraftVersion)` | Paper, with plugins |
-| `MinecraftServerUtil.velocity(name)` | A Velocity proxy, with plugins |
+A server is a `new Server(name)`, and each setting is a method that returns it, so they chain;
+`install()` checks them all, and installs it. The name is the server's service, `minecraft-<name>`, and
+its folder, `/var/lib/minecraft/<name>`: letters, digits, `-` and `_`.
 
 | Setting | For | Default | |
 | --- | --- | --- | --- |
+| `.loader(loader)` | all | none: an error | [Loaders](servers.md#loaders) |
+| `.minecraftVersion(version)` | all but Velocity | none: an error | [Minecraft versions](servers.md#minecraft-versions) |
 | `.loaderVersion(version)` | all but vanilla | the newest | [Loader versions](servers.md#loader-versions) |
 | `.port(port)` | all | 25565; a proxy, 25577 | [Ports](servers.md#ports-and-the-firewall) |
 | `.memory(size)` | all | `"2G"` | [Memory and Java](servers.md#memory-and-java) |
@@ -79,12 +75,10 @@ so they chain. `build()` checks them and gives the `Server`; `install()` install
 | `.server(server)` | Velocity | none | [Servers behind a proxy](proxy.md#servers-behind-a-proxy) |
 | `.tryServer(name)` | Velocity | every server, in order | [The try list](proxy.md#the-try-list) |
 | `.forcedHost(hostname, server)` | Velocity | none | [Forced hosts](proxy.md#forced-hosts) |
-| `.build()` | all | | gives the `Server`, checked |
-| `.install()` | all | | builds it, installs it, and gives the `Server` |
+| `.install()` | all | | checks it and installs it; a proxy's, with the servers behind it |
 
-A `Server` has one method, `install()`. A setting for another kind of server (a mod on Paper, a
-forwarding mode on Fabric) is an error when it builds, as is a value it can't take; [Errors](errors.md)
-lists them all.
+A setting for another kind of server (a mod on Paper, a forwarding mode on Fabric) is an error when the
+configuration builds, as is a value it can't take; [Errors](errors.md) lists them all.
 
 ## What it doesn't do
 

@@ -4,19 +4,28 @@
 
 ## Loaders
 
-| Start | Loader | Takes | From |
-| --- | --- | --- | --- |
-| `vanilla(name, version)` | Mojang's server | nothing | Mojang's version manifest |
-| `fabric(name, version)` | Fabric | mods | meta.fabricmc.net |
-| `forge(name, version)` | Forge | mods | maven.minecraftforge.net |
-| `neoforge(name, version)` | NeoForge | mods | maven.neoforged.net |
-| `paper(name, version)` | Paper | plugins | PaperMC (fill.papermc.io) |
-| `velocity(name)` | Velocity, a proxy | plugins | PaperMC (fill.papermc.io); see [Velocity proxies](proxy.md) |
+```java
+new Server("survival").loader(Loaders.FABRIC).minecraftVersion("26.3")
+```
 
-The name is the server's service (`minecraft-<name>`) and folder (`/var/lib/minecraft/<name>`):
-letters, digits, `-` and `_`. Each server installed has a name of its own.
+Every server has a loader, `.loader()`; without one, the configuration doesn't build.
+
+| `Loaders.` | Loader | Takes | From |
+| --- | --- | --- | --- |
+| `VANILLA` | Mojang's server | nothing | Mojang's version manifest |
+| `FABRIC` | Fabric | mods | meta.fabricmc.net |
+| `FORGE` | Forge | mods | maven.minecraftforge.net |
+| `NEOFORGE` | NeoForge | mods | maven.neoforged.net |
+| `PAPER` | Paper | plugins | PaperMC (fill.papermc.io) |
+| `VELOCITY` | Velocity, a proxy | plugins | PaperMC (fill.papermc.io); see [Velocity proxies](proxy.md) |
+
+The name, `new Server(name)`, is the server's service (`minecraft-<name>`) and folder
+(`/var/lib/minecraft/<name>`): letters, digits, `-` and `_`. Each server installed has a name of its own.
 
 ## Minecraft versions
+
+`.minecraftVersion(version)` is every server's but a proxy's, which takes none (its Velocity's own
+version is [`loaderVersion()`](#loader-versions)); without it, the configuration doesn't build.
 
 The version is Mojang's: `"26.3"`, `"1.21.1"`, `"1.20.4"`. It has letters, digits, `.`, `-`, `_` and
 `+`; one Mojang, or the loader, doesn't have is an error when the server starts
@@ -163,17 +172,15 @@ must stay.
 To choose again without a change, delete `.seal-mc/requested` (the loader) or `.seal-mc/mods.for`
 and `.seal-mc/plugins.for` (the mods and plugins) in its folder, and restart it.
 
-## Building and installing
+## Installing
 
 ```java
-MinecraftServerUtil.Builder b = MinecraftServerUtil.paper("lobby", "26.3").acceptEula();
-MinecraftServerUtil.Server lobby = b.build();       // checked; not installed
-lobby.install();                                    // the service
-MinecraftServerUtil.paper("hub", "26.3").acceptEula().install();   // both at once
+var lobby = new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3").acceptEula();
+lobby.port(25566);                                  // a Server can be set in steps
+lobby.install();                                    // checked, then installed
 ```
 
-`build()` checks the settings and gives a `Server`, which keeps them: changing the builder later
-changes it no more, and the builder can go on to build others. `install()` on a `Server` makes its
-service, its user and its port; `install()` on a builder builds and installs. A server is installed
-once. A server given to a proxy, `.server(server)`, is installed by the proxy's `install()`, and its
-own `install()` is an error ([Servers behind a proxy](proxy.md#servers-behind-a-proxy)).
+`install()` checks every setting, and makes the server's service, its user and its port; until then,
+a `Server` is only its settings, which can change. A server is installed once. A server given to a
+proxy, `.server(server)`, is installed by the proxy's `install()`, with the settings it has then, and
+its own `install()` is an error ([Servers behind a proxy](proxy.md#servers-behind-a-proxy)).

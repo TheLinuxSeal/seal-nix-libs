@@ -5,7 +5,7 @@ set up a whole service in a few lines of Seal.
 
 | Library | Import | | Docs | Example |
 | --- | --- | --- | --- | --- |
-| [`minecraft`](lib/minecraft/MinecraftServerUtil.seal) | `import minecraft.MinecraftServerUtil;` | Minecraft servers (vanilla, Fabric, Forge, NeoForge, Paper) and Velocity proxies, with their mods and plugins from Modrinth | [`docs/minecraft`](docs/minecraft) | [`examples/minecraft`](examples/minecraft) |
+| [`minecraft`](lib/minecraft/Server.seal) | `import minecraft.*;` | Minecraft servers (vanilla, Fabric, Forge, NeoForge, Paper) and Velocity proxies, with their mods and plugins from Modrinth | [`docs/minecraft`](docs/minecraft) | [`examples/minecraft`](examples/minecraft) |
 
 A library's docs have every setting it has; its file says the gist, at its top. An example is a whole
 machine that uses one, as a flake to start from: `nix flake init -t github:TheLinuxSeal/seal-nix-libs#minecraft`.
@@ -46,11 +46,11 @@ Then the configuration imports what it uses:
 
 ```java
 import sealnix.*;
-import minecraft.MinecraftServerUtil;
+import minecraft.*;
 
 class Main {
     static void main() {
-        MinecraftServerUtil.paper("lobby", "26.3").acceptEula().install();
+        new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3").acceptEula().install();
     }
 }
 ```
@@ -62,7 +62,7 @@ Nix, `seal-nix.lib.generate { ...; libraries = [ seal-nix-libs.sealLibrary ]; }`
 ## Writing a library
 
 A library is a Seal package in `lib/`, in the folder of its name: `package minecraft;` at the top of
-`lib/minecraft/MinecraftServerUtil.seal`. It imports `sealnix.*` for `Config` and `Packages`, as a
+each of `lib/minecraft`'s files (`Server.seal`, `Loaders.seal`, `Forwarding.seal`). It imports `sealnix.*` for `Config` and `Packages`, as a
 configuration does, and its public classes are what configurations import. The package keeps its
 names out of theirs.
 

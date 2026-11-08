@@ -1,0 +1,8 @@
+package minecraft;
+
+// How a Velocity proxy tells its servers who each player is, for Server.forwarding(): velocity.toml's
+// player-info-forwarding-mode. MODERN is Velocity's own, signed with the forwarding secret; LEGACY is
+// BungeeCord's, which anyone who reaches a server can forge; BUNGEEGUARD is LEGACY with the secret as a
+// token, for servers with BungeeGuard's plugin; NONE tells nothing, so a server sees each player as
+// offline, with an offline UUID.
+enum Forwarding { NONE, LEGACY, BUNGEEGUARD, MODERN }

@@ -57,7 +57,7 @@
           assert lib.hasInfix ''try = ["lobby", "smp"]'' s.minecraft-proxy.preStart;
           assert lib.hasInfix ''"smp.example.com" = ["smp"]'' s.minecraft-proxy.preStart;
           pkgs.runCommand "minecraft" { } ''
-            head -1 ${module} | grep -q "from Main.seal, minecraft/MinecraftServerUtil.seal:"
+            head -1 ${module} | grep -q "from Main.seal, minecraft/Forwarding.seal, minecraft/Loaders.seal, minecraft/Server.seal:"
             ${lib.concatStrings (lib.mapAttrsToList (name: unit: parse "${name}-preStart" unit.preStart + parse "${name}-script" unit.script) s)}
             touch $out
           '';

@@ -1,11 +1,13 @@
 import sealnix.*;
-import minecraft.MinecraftServerUtil;
+import minecraft.*;
 
-// MinecraftServerUtil's servers: one on its own, and a Velocity proxy with two servers built here
-// behind it, and one elsewhere, by its address.
+// The minecraft library's servers: one on its own, and a Velocity proxy with two servers configured
+// here behind it, and one elsewhere, by its address.
 class Main {
     static void main() {
-        MinecraftServerUtil.fabric("survival", "26.3")
+        new Server("survival")
+            .loader(Loaders.FABRIC)
+            .minecraftVersion("26.3")
             .acceptEula()
             .memory("4G")
             .mod("fabric-api")
@@ -13,12 +15,14 @@ class Main {
             .property("motd", "A Seal server")
             .install();
 
-        MinecraftServerUtil.Server lobby = MinecraftServerUtil.paper("lobby", "26.3")
-            .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit").build();
-        MinecraftServerUtil.Server smp = MinecraftServerUtil.fabric("smp", "26.3")
-            .acceptEula().port(25567).mod("lithium").build();
+        var lobby = new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3")
+            .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit");
+        var smp = new Server("smp").loader(Loaders.FABRIC).minecraftVersion("26.3")
+            .acceptEula().mod("lithium");
+        smp.port(25567);                                     // a server given to the proxy can still change
 
-        MinecraftServerUtil.velocity("proxy")
+        new Server("proxy")
+            .loader(Loaders.VELOCITY)
             .server(lobby)
             .server(smp)
             .server("creative", "10.0.0.5:25565")

@@ -3,20 +3,21 @@
 [minecraft](README.md) › Velocity proxies
 
 A Velocity proxy is where players connect. It signs them in with Mojang, and sends them on to its
-servers, from one to another with `/server`. A server can be one built in the same configuration,
+servers, from one to another with `/server`. A server can be a `Server` of the same configuration,
 which is then set up behind the proxy by itself, or one elsewhere, by its address.
 
 ```java
-MinecraftServerUtil.Server lobby = MinecraftServerUtil.paper("lobby", "26.3")
-    .acceptEula().port(25566).build();
-MinecraftServerUtil.Server survival = MinecraftServerUtil.fabric("survival", "26.3")
-    .acceptEula().port(25567).mod("lithium").build();
+var lobby = new Server("lobby").loader(Loaders.PAPER).minecraftVersion("26.3")
+    .acceptEula().port(25566);
+var survival = new Server("survival").loader(Loaders.FABRIC).minecraftVersion("26.3")
+    .acceptEula().port(25567).mod("lithium");
 
-MinecraftServerUtil.velocity("proxy")
+new Server("proxy")
+    .loader(Loaders.VELOCITY)
     .port(25565)                                        // where players connect
-    .forwarding(MinecraftServerUtil.Forwarding.MODERN)  // the default
+    .forwarding(Forwarding.MODERN)                      // the default
     .forwardingSecretFile("/run/secrets/velocity")      // or one the proxy makes
-    .server(lobby)                                      // built here: set up behind the proxy
+    .server(lobby)                                      // a Server: set up behind the proxy
     .server(survival)
     .server("creative", "10.0.0.5:25565")               // elsewhere, set up by hand
     .tryServer("lobby")                                 // where players join
@@ -26,8 +27,9 @@ MinecraftServerUtil.velocity("proxy")
     .install();                                         // the proxy, lobby and survival
 ```
 
-A proxy takes the settings every server does ([Servers](servers.md)) but `property()` and `mod()`,
-and needs no `acceptEula()`. It listens on 25577 unless `.port()` says, on every address.
+A proxy is a `Server` with `.loader(Loaders.VELOCITY)`. It takes the settings every server does
+([Servers](servers.md)) but `minecraftVersion()`, `property()` and `mod()`, and needs no
+`acceptEula()`. It listens on 25577 unless `.port()` says, on every address.
 Its Velocity is the newest release unless `.loaderVersion("3.5.1")` names one, and runs on Java 25.
 
 ## velocity.toml
@@ -53,7 +55,7 @@ as they are, so they can be edited by hand; a new `velocity.toml` has Velocity's
 The servers behind a proxy don't see players sign in, so the proxy tells them who each one is (name,
 UUID, skin, address). `.forwarding(mode)` says how, as `velocity.toml`'s `player-info-forwarding-mode`:
 
-| `MinecraftServerUtil.Forwarding.` | How | Secret |
+| `Forwarding.` | How | Secret |
 | --- | --- | --- |
 | `MODERN` (the default) | Velocity's own, signed with the secret: a server takes it from the proxy alone. Minecraft 1.13 and newer | yes |
 | `LEGACY` | BungeeCord's, unsigned: anyone who reaches a server can claim to be anyone | no |
@@ -87,11 +89,11 @@ minecraft-survival`.
 ## The proxy's servers
 
 ```java
-.server(lobby)                              // a Server built here
+.server(lobby)                              // a Server of the configuration
 .server("creative", "10.0.0.5:25565")       // a name, and an address
 ```
 
-`.server(server)` gives a server built in the configuration, by its name, at `127.0.0.1:<its port>`,
+`.server(server)` gives a `Server` of the configuration, by its name, at `127.0.0.1:<its port>`,
 and sets it up [behind the proxy](#servers-behind-a-proxy).
 
 `.server(name, address)` gives a server this doesn't set up: on another machine, or one set up by hand,
@@ -120,8 +122,8 @@ the proxy's machine; the server is one given.
 
 ## Servers behind a proxy
 
-A server built in the configuration, and given to the proxy with `.server(server)`, is set up behind
-it:
+A `Server` of the configuration, given to the proxy with `.server(server)`, is set up behind it, with
+the settings it has when the proxy is installed:
 
 | | |
 | --- | --- |
@@ -162,7 +164,7 @@ where it listens.
 
 The rules:
 
-- A server is behind one proxy, built once. A proxy isn't behind another.
+- A server is behind one proxy. A proxy isn't behind another.
 - The proxy's `install()` installs it, and its own is an error, before or after.
 - The proxy and its servers each have a port of their own, and a name of their own.
 
