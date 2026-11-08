@@ -56,6 +56,11 @@ import seal.util.List;
 // version chooses every mod and plugin again. Mods and plugins this put there, which the configuration
 // no longer names, are removed; ones put there by hand are kept.
 //
+// A mod's or plugin's own config file is a ConfigFile, whose settings are set at every start, in a
+// .toml, .yaml, .json, .json5 or .properties file; a key the configuration no longer sets goes:
+//
+//     .config(new ConfigFile("config/mymod.toml").set("general.threads", 4).set("general.fastMath", true))
+//
 // docs/minecraft, in seal-nix-libs, is all of it: every setting, the proxy, the service, the errors.
 //
 // A server lives in /var/lib/minecraft/<name>, runs as the user minecraft, and saves and stops on
@@ -88,6 +93,7 @@ class Server {
     bit updates = false;
     List<Project> mods = new List();
     List<Project> plugins = new List();
+    List<ConfigFile> configs = new List();
     Pkg customJdk = null;                    // null for the one the Minecraft version needs
     List<string> propertyKeys = new List();
     List<string> propertyValues = new List();
@@ -203,6 +209,12 @@ class Server {
             propertyKeys.add(key);
             propertyValues.add(value);
         }
+        return this;
+    }
+
+    // A config file of a mod or plugin, or any other file in the server's folder: see ConfigFile.
+    public Server config(ConfigFile file) {
+        configs.add(file);
         return this;
     }
 
@@ -385,6 +397,15 @@ class Server {
         }
         for (Project m : mods) { checkProject(m, "mod"); }
         for (Project p : plugins) { checkProject(p, "plugin"); }
+        for (int k = 0; k < configs.size(); k++) {
+            configs.get(k).check(about);
+            for (int j = 0; j < k; j++) {
+                if (configs.get(j).filePath() == configs.get(k).filePath()) {
+                    throw new IllegalArgumentException(about + "two config files are \"" + configs.get(k).filePath()
+                        + "\"; give all its settings to one");
+                }
+            }
+        }
         for (int k = 0; k < propertyKeys.size(); k++) {
             if (!plain(propertyKeys.get(k), ".-_") || propertyValues.get(k).contains("\n")) {
                 throw new IllegalArgumentException(about + "no property " + propertyKeys.get(k));
@@ -533,12 +554,28 @@ class Server {
         return Packages.jdk8_headless;
     }
 
-    // What preStart runs with; Paper's yq edits its YAML, Velocity's unzip takes its default velocity.toml.
+    // What preStart runs with. yq edits config files, on every server, since a start may have to take
+    // settings out of one the configuration no longer has; Velocity's unzip takes its default
+    // velocity.toml; Python reads the JSON5 of files whose keys are set.
     string tools() {
-        string more = loaderType == Loader.PAPER ? " " + Packages.yq_go
-            : loaderType == Loader.VELOCITY ? " " + Packages.unzip : "";
+        string more = loaderType == Loader.VELOCITY ? " " + Packages.unzip : "";
+        for (ConfigFile c : configs) {
+            if (c.editsJson5()) {
+                more = more + " (pkgs.python3.withPackages (ps: [ ps.json5 ]))";
+                break;
+            }
+        }
         return "" + Packages.curl + " " + Packages.jq + " " + Packages.coreutils + " " + Packages.gawk + " "
-            + Packages.gnugrep + " " + java() + more;
+            + Packages.gnugrep + " " + Packages.yq_go + " " + java() + more;
+    }
+
+    // The config files, as JSON for the start.
+    string configsJson() {
+        StringBuilder b = new StringBuilder();
+        for (ConfigFile c : configs) {
+            b.append(b.length() > 0 ? "," : "").append(c.spec());
+        }
+        return "[" + b.toString() + "]";
     }
 
     // The forwarding secret's file: a proxy's own, or the proxy's this is behind; empty for neither.
@@ -624,6 +661,7 @@ class Server {
         b.append("SECRET=").append(sh(secretPath())).append('\n');
         b.append("OWN_SECRET=").append(loaderType == Loader.VELOCITY && secretFile.length() == 0 ? "1" : "0").append('\n');
         b.append("SERVERS=").append(sh(serversToml())).append('\n');
+        b.append("CONFIGS=").append(sh(configsJson())).append('\n');
         b.append(PREPARE);
         return b.toString();
     }
@@ -995,5 +1033,101 @@ class Server {
           fi
           echo "$BEHIND" > .seal-mc/behind
         fi
+
+        # edit FILE FORMAT EXPRESSION: yq's EXPRESSION on a config file, into FILE.next, read as AS. JSON5
+        # is read by Python, and comes out as plain JSON, which is JSON5 too.
+        edit() {
+          local file=$1 format=$2 expression=$3 input=$1
+          AS=$format
+          if [ "$format" = json5 ]; then
+            AS=json
+            input=$file.read
+            if [ ! -s "$file" ]; then
+              echo '{}' > "$input"
+            elif command -v python3 > /dev/null; then
+              python3 -I -c 'import json, json5, sys; json.dump(json5.load(open(sys.argv[1], encoding="utf-8")), sys.stdout)' \
+                "$file" > "$input" || return 1
+            else
+              cp "$file" "$input"
+            fi
+          fi
+          yq -p "$AS" -o "$AS" "$expression" "$input" > "$file.next"
+        }
+
+        # property FILE KEY [VALUE]: KEY's line in a .properties file, in place of the one there, or
+        # added; without a VALUE, no such line.
+        property() {
+          local given=$#
+          KEY=$2 VALUE=${3-} GIVEN=$given awk 'BEGIN { k = ENVIRON["KEY"]; line = k "=" ENVIRON["VALUE"]; put = ENVIRON["GIVEN"] == 3 }
+            function same(t) {
+              sub(/^[[:blank:]]+/, "", t)
+              if (index(t, k) != 1) return 0
+              t = substr(t, length(k) + 1)
+              return t == "" || t ~ /^[[:blank:]=:]/
+            }
+            same($0) { if (put && !done) print line; done = 1; next }
+            { print }
+            END { if (put && !done) print line }' "$1" > "$1.next"
+          mv -f "$1.next" "$1"
+        }
+
+        # The config files: first what an earlier start set, which the configuration no longer does, goes,
+        # a key so that the mod is back to its default, a whole file with its text().
+        printf '%s' "$CONFIGS" > .seal-mc/configs.next
+        if [ -s .seal-mc/configs ]; then
+          while IFS= read -r gone; do
+            file=$(jq -r .path <<<"$gone")
+            if [ "$(jq -r .whole <<<"$gone")" = true ]; then
+              rm -f "$file"
+              log "config: removed $file"
+            elif [ -f "$file" ]; then
+              format=$(jq -r .format <<<"$gone")
+              if [ "$format" = properties ]; then
+                while IFS= read -r key; do property "$file" "$key"; done < <(jq -r '.keys[][0]' <<<"$gone")
+                log "config: $file: took out what is no longer set"
+              elif KEYS=$(jq -c .keys <<<"$gone") edit "$file" "$format" 'delpaths(env(KEYS))'; then
+                mv -f "$file.next" "$file"
+                log "config: $file: took out what is no longer set"
+              else
+                log "config: $file: can't be read, so what is no longer set stays in it"
+              fi
+              rm -f "$file.next" "$file.read"
+            fi
+          done < <(jq -c --slurpfile now .seal-mc/configs.next '.[] | . as $o | ($now[0] | map(select(.path == $o.path)) | .[0]) as $n
+            | if $n == null then (if $o.text != null then {path: $o.path, whole: true} else {path: $o.path, format: $o.format, keys: [$o.set[].key]} end)
+              elif $n.text != null or $o.text != null then empty
+              else {path: $o.path, format: $o.format, keys: ([$o.set[].key] - [$n.set[].key])} | select(.keys != []) end' .seal-mc/configs)
+        fi
+
+        # Then what the configuration gives, last, so that it has the last word on any file.
+        while IFS= read -r config; do
+          file=$(jq -r .path <<<"$config")
+          format=$(jq -r .format <<<"$config")
+          settings=$(jq -c .set <<<"$config")
+          mkdir -p "$(dirname -- "$file")"
+          if [ "$(jq -r '.text != null' <<<"$config")" = true ]; then
+            jq -j .text <<<"$config" > "$file.next"
+            mv -f "$file.next" "$file"
+          elif [ "$format" = properties ]; then
+            touch "$file"
+            while IFS=$'\\t' read -r key value; do
+              property "$file" "$key" "$value"
+            done < <(jq -r '.[] | .key[0] + "\\t" + .value' <<<"$settings")
+          else
+            touch "$file"
+            SET=$settings edit "$file" "$format" 'env(SET)[] as $e ireduce (.; setpath($e.key; $e.value))' \
+              || { rm -f "$file.next" "$file.read"; fail "$file can't be read as $format, so its settings can't be set; text() writes a whole file"; }
+            # A key under what isn't a section isn't set, and yq doesn't say so.
+            missed=$(yq -p "$AS" -o json "$file.next" | jq -r --argjson s "$settings" \
+              '. as $d | $s[] as $e | select((try ($d | getpath($e.key)) catch null) != $e.value) | $e.key | join(".")')
+            if [ -n "$missed" ]; then
+              rm -f "$file.next" "$file.read"
+              fail "$file: can't set $missed, which is under a value that isn't a section"
+            fi
+            mv -f "$file.next" "$file"
+            rm -f "$file.read"
+          fi
+        done < <(jq -c '.[]' <<<"$CONFIGS")
+        mv -f .seal-mc/configs.next .seal-mc/configs
         """;
 }

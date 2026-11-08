@@ -25,7 +25,7 @@ class Main {
 
 | Page | |
 | --- | --- |
-| [Servers](servers.md) | Loaders, Minecraft and loader versions, mods and plugins, `server.properties`, memory and Java, ports, updates |
+| [Servers](servers.md) | Loaders, Minecraft and loader versions, mods and plugins, `server.properties`, config files, memory and Java, ports, updates |
 | [Velocity proxies](proxy.md) | Forwarding, the forwarding secret, the proxy's servers, try list and forced hosts, servers behind a proxy |
 | [Running](running.md) | The systemd service, the folders and files, what a start does, logs, commands, security |
 | [Errors](errors.md) | Every error the configuration or a start can give, and what to do |
@@ -45,8 +45,9 @@ modules = [
 ];
 ```
 
-A Seal file that uses it imports the package, `import sealnix.libs.minecraft.*;`, which has three types: `Server`,
-`Loader` (the loaders) and `Forwarding` (a proxy's forwarding modes).
+A Seal file that uses it imports the package, `import sealnix.libs.minecraft.*;`, which has four types: `Server`,
+`Loader` (the loaders), `Forwarding` (a proxy's forwarding modes) and `ConfigFile` (a mod's or plugin's
+config file).
 
 ## Every setting
 
@@ -65,6 +66,7 @@ its folder, `/var/lib/minecraft/<name>`: letters, digits, `-` and `_`.
 | `.jdk(package)` | all | the one the version needs | [Memory and Java](servers.md#memory-and-java) |
 | `.acceptEula()` | all but Velocity | not accepted: an error | [server.properties](servers.md#serverproperties-and-the-eula) |
 | `.property(key, value)` | all but Velocity | none | [server.properties](servers.md#serverproperties-and-the-eula) |
+| `.config(file)` | all | none | [Config files](servers.md#config-files) |
 | `.mod(project)`, `.mod(project, version)` | Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
 | `.plugin(project)`, `.plugin(project, version)` | Paper, Velocity | none | [Mods and plugins](servers.md#mods-and-plugins) |
 | `.openFirewall(open)` | all | `true` | [Ports](servers.md#ports-and-the-firewall) |
@@ -87,6 +89,4 @@ configuration builds, as is a value it can't take; [Errors](errors.md) lists the
   FabricProxy-Lite.)
 - **Modpacks, datapacks, resource packs**, and mods from anywhere but Modrinth. A file put in `mods/`
   or `plugins/` by hand is kept, and left alone.
-- **Settings files besides `server.properties`** and, for a proxy, `velocity.toml`'s bind, forwarding
-  and servers. Others (`bukkit.yml`, a mod's `config/`) are the server's own, to edit on the machine.
 - **Backups.** The worlds are in `/var/lib/minecraft/<name>`; back that up as any folder.

@@ -33,6 +33,24 @@ anything changes on the machine. The build's log says, after `uncaught IllegalAr
 | `<setting>() is a Velocity proxy's, and <loader> is no proxy` | `forwarding()`, `forwardingSecretFile()`, `server()`, `tryServer()` or `forcedHost()` on a server. |
 | `is installed twice: install each server once, each with a name of its own` | `install()` twice, or two servers of one name. |
 
+### A config file
+
+These say `the config file "<path>"`, and then:
+
+| Error | Means |
+| --- | --- |
+| `isn't a path in the server's folder, as "config/mymod.toml"` | The path is empty or absolute, has a `..`, an empty folder, a tab or a new line. |
+| `is in .seal-mc, which is this library's own` | `.seal-mc/` is for the library's records. |
+| `has both text(), which is the whole file, and set()` | A `ConfigFile` has one or the other. |
+| `says nothing: set() a key, or text() the whole file` | A `ConfigFile` with neither. |
+| `has no format to set() keys in: .toml, .yaml, .yml, .json, .json5 or .properties; text() writes any other` | `.set()` on a file of another extension. |
+| `can't set <key> to NaN or Infinity` | No format has them. |
+| `has no key "<key>"` | The key is empty, has a tab or a new line, or an empty part, as in `a..b`. |
+| `can't set <key> to a list: a .properties file has none` | A list in a `.properties` file. |
+| `sets both <key> and <key>: a value can't also be a section` | One key is a section of the other: `a` and `a.b`. |
+
+And for the server: `two config files are "<path>"; give all its settings to one`.
+
 ### A proxy
 
 | Error | Means |
@@ -82,8 +100,13 @@ reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts wi
 | `Modrinth has no project <slug>` | No project of that slug or ID. | The slug, as in the project's address. |
 | `<slug> has no version for <loader> <version> on Modrinth` | The project has nothing for that loader and Minecraft version. | Another mod, or another version. |
 | `<slug> has no version <version> for <loader> <version> on Modrinth` | The version given isn't one of the project's version numbers or IDs, or isn't for that loader and Minecraft version. | The whole version number, as the project's Versions tab on Modrinth shows it. |
+| `<path> can't be read as <format>, so its settings can't be set; text() writes a whole file` | The file isn't what its extension says: a mod's `.json` with comments in it, say. It is left as it was. | Give the whole file with `.text()`. |
+| `<path>: can't set <key>, which is under a value that isn't a section` | Part of the key is a value in the file, as `top.sub` where `top = 1`. It is left as it was. | The key as the file has it. |
 | `MODERN forwarding is signed with a secret, and <path> holds none` | The proxy's `forwardingSecretFile()` is missing, empty, or not the user `minecraft`'s to read. (`BUNGEEGUARD` says so too.) | The file, or its owner. |
 | `no forwarding secret to read in <path>, which minecraft-<proxy> signs with` | A server behind a proxy started before the proxy made its secret, or can't read the one given. | Start the proxy: `systemctl start minecraft-<proxy>`. |
+
+One line doesn't stop the start: `config: <path>: can't be read, so what is no longer set stays in it`. A
+setting was taken out of the configuration, but the file can't be edited, so it stays at its last value.
 
 And from the server itself, in the same log:
 

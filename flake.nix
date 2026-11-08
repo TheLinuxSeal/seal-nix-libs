@@ -53,11 +53,18 @@
           assert lib.hasInfix "MODS=('lithium' 'fabric-api' 'fabricproxy-lite')" s.minecraft-smp.preStart;
           assert lib.hasInfix "MODS=('fabric-api' 'lithium@mc26.3-0.26.3-fabric')" s.minecraft-survival.preStart;
           assert lib.hasInfix "PLUGINS=('luckperms@v5.5.71-bukkit')" s.minecraft-lobby.preStart;
+          assert lib.hasInfix ''{"path":"config/mymod.toml","format":"toml","text":null,"set":[{"key":["general","threads"],"value":4},{"key":["general","fastMath"],"value":true}]}'' s.minecraft-survival.preStart;
+          assert lib.hasInfix ''{"key":["a.b","c"],"value":"x"}'' s.minecraft-survival.preStart;
+          assert lib.hasInfix ''{"path":"config/lithium.properties","format":"properties","text":null,"set":[{"key":["mixin.ai.pathing"],"value":"false"}]}'' s.minecraft-survival.preStart;
+          assert lib.hasInfix ''{"path":"config/whole.conf","format":"","text":"hello\n","set":[]}'' s.minecraft-survival.preStart;
+          assert lib.hasInfix ''{"path":"plugins/LuckPerms/config.yml","format":"yaml"'' s.minecraft-lobby.preStart;
+          assert lib.hasInfix "CONFIGS='[]'" s.minecraft-smp.preStart;
           assert lib.hasInfix "PROPERTIES=('online-mode=false' 'server-ip=127.0.0.1')" s.minecraft-lobby.preStart;
           assert lib.hasInfix ''try = ["lobby", "smp"]'' s.minecraft-proxy.preStart;
           assert lib.hasInfix ''"smp.example.com" = ["smp"]'' s.minecraft-proxy.preStart;
           pkgs.runCommand "minecraft" { } ''
-            head -1 ${module} | grep -q "from Main.seal, sealnix/libs/minecraft/Forwarding.seal, sealnix/libs/minecraft/Loader.seal, sealnix/libs/minecraft/Server.seal:"
+            head -1 ${module} | grep -q "from Main.seal, sealnix/libs/minecraft/ConfigFile.seal, sealnix/libs/minecraft/Forwarding.seal, sealnix/libs/minecraft/Loader.seal, sealnix/libs/minecraft/Server.seal:"
+            test "$(grep -c 'ps.json5' ${module})" = 1
             ${lib.concatStrings (lib.mapAttrsToList (name: unit: parse "${name}-preStart" unit.preStart + parse "${name}-script" unit.script) s)}
             touch $out
           '';

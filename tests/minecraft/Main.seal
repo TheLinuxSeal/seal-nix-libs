@@ -13,10 +13,15 @@ class Main {
             .mod("fabric-api")
             .mod("lithium", "mc26.3-0.26.3-fabric")          // a version, by its version number
             .property("motd", "A Seal server")
+            .config(new ConfigFile("config/mymod.toml").set("general.threads", 4).set("general.fastMath", true))
+            .config(new ConfigFile("config/other.json5").set("a\\.b.c", "x"))
+            .config(new ConfigFile("config/lithium.properties").set("mixin.ai.pathing", false))
+            .config(new ConfigFile("config/whole.conf").text("hello\n"))
             .install();
 
         var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3")
-            .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit");
+            .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit")
+            .config(new ConfigFile("plugins/LuckPerms/config.yml").set("server", "lobby"));
         var smp = new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3")
             .acceptEula().mod("lithium");
         smp.port(25567);                                     // a server given to the proxy can still change

@@ -46,7 +46,7 @@ own default, and each start then sets:
 | `[forced-hosts]` | the [forced hosts](#forced-hosts), when the configuration gives any server |
 
 Everything else in it (`motd`, `online-mode`, `show-max-players`, `[advanced]`, ...) is Velocity's, to
-edit on the machine, and is kept. A proxy given no server keeps its `[servers]` and `[forced-hosts]`
+edit on the machine or to set with a [`ConfigFile`](servers.md#config-files), and is kept. A proxy given no server keeps its `[servers]` and `[forced-hosts]`
 as they are, so they can be edited by hand; a new `velocity.toml` has Velocity's examples there
 (`lobby`, `factions`, `minigames`).
 

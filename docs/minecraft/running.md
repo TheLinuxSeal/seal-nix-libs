@@ -16,7 +16,7 @@ Each server is a systemd service, `minecraft-<name>`:
 | Start time | up to 20 minutes, for the first start's downloads and Forge's installer |
 | Stop time | up to 120 seconds, to save the worlds; it ends with 143 (SIGTERM), which counts as success |
 | Sandbox | `ProtectSystem=strict` (all but its folder read-only), `ProtectHome`, `PrivateTmp`, `NoNewPrivileges` |
-| Tools | curl, jq, coreutils, gawk, grep and its Java; Paper's yq, Velocity's unzip |
+| Tools | curl, jq, coreutils, gawk, grep, yq and its Java; Velocity's unzip; Python, if it `.set()`s keys in a `.json5` file |
 
 ```sh
 systemctl status minecraft-survival
@@ -42,6 +42,8 @@ The service's `preStart` runs first, as `minecraft`, in the server's folder:
 3. **The settings.** For a server: `eula.txt`, `server.properties`, and behind a proxy, its forwarding
    ([Servers behind a proxy](proxy.md#servers-behind-a-proxy)). For a proxy: its forwarding secret, if
    it makes it, and `velocity.toml` ([velocity.toml](proxy.md#velocitytoml)).
+4. **The config files**: what the configuration no longer sets is taken out, and then each
+   [`ConfigFile`](servers.md#config-files) is applied, last, so that it has the last word on any file.
 
 Then the server itself: `java -Xms<memory> -Xmx<memory> <jvmArgs> <the loader's arguments>`, with
 the forwarding secret in its environment behind a proxy.
@@ -82,7 +84,8 @@ The requests say who they are from, as Modrinth asks: `seal-nix-libs minecraft
     ├── mods.lock            each mod given, and its file (plugins.lock for plugins)
     ├── mods.for             the loader and Minecraft version they were chosen for (plugins.for)
     ├── behind               the forwarding of the proxy this is behind; empty for none
-    └── installer.log        Forge's or NeoForge's installer's output
+    ├── installer.log        Forge's or NeoForge's installer's output
+    └── configs              the config files of the last start, to know what no longer is
 ```
 
 Deleting `.seal-mc/requested` chooses the loader again at the next start, and deleting `mods.for`
@@ -104,8 +107,8 @@ firewall, so an RCON client on the machine reaches it: `mcrcon -P 25575 -p <pass
 
 ## Security
 
-- **The Nix store is public to the machine.** Everything the configuration says (properties, JVM
-  arguments, names, addresses) is in it, readable by every user. Passwords and secrets go in files on
+- **The Nix store is public to the machine.** Everything the configuration says (properties, config
+  files, JVM arguments, names, addresses) is in it, readable by every user. Passwords and secrets go in files on
   the machine, as the forwarding secret does.
 - **The forwarding secret** is never in the store: the proxy's own is `0600`, a given one is the
   file it is, and the servers behind a proxy read it as they start. Paper writes it into its config,

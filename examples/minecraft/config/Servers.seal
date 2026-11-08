@@ -13,7 +13,8 @@ class Servers {
             .acceptEula()                                        // Mojang's EULA: https://aka.ms/MinecraftEULA
             .port(25566)
             .plugin("luckperms")                                 // Modrinth projects, by slug
-            .property("motd", "The lobby");
+            .property("motd", "The lobby")
+            .config(new ConfigFile("plugins/LuckPerms/config.yml").set("server", "lobby"));   // a plugin's own config
 
         var survival = new Server("survival")
             .loader(Loader.FABRIC)

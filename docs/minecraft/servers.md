@@ -117,6 +117,62 @@ The values are in the Nix store, which every user of the machine can read: no pa
 A proxy has no `server.properties`: `.property()` on one is an error. Its settings are in
 `velocity.toml` ([Velocity proxies](proxy.md#velocitytoml)).
 
+## Config files
+
+```java
+.config(new ConfigFile("config/mymod.toml")
+    .set("general.threads", 4)
+    .set("general.fastMath", true)
+    .set("worlds", ["overworld", "nether"]))
+.config(new ConfigFile("plugins/LuckPerms/config.yml").set("server", "lobby"))
+.config(new ConfigFile("config/other.conf").text("enabled = true\n"))
+```
+
+A `ConfigFile` is a file in the server's folder, by its path there, and `.config(file)` gives it to a
+server of any loader, a proxy too. It can be a mod's, a plugin's, or the loader's own:
+`config/paper-global.yml`, or a proxy's `velocity.toml`. One `ConfigFile` can be given to several servers.
+
+**`.set(key, value)`** sets that key at every start, and leaves the rest of the file as it is. The
+value is a string, a whole number, `true` or `false`, a decimal, or a list of one of those, and goes
+in as that type, so `true` isn't `"true"`. A list takes the place of the one there. The same key
+again takes the last value.
+
+| Extension | Format | The file's comments |
+| --- | --- | --- |
+| `.toml` | TOML | kept |
+| `.yaml`, `.yml` | YAML | kept |
+| `.json` | JSON | it has none |
+| `.json5` | JSON5 | lost: the file comes back as plain JSON, which is JSON5 too |
+| `.properties` | Java properties | kept |
+
+A dot in a key goes down a level: `general.threads` is `threads` in the section `general`. `\\.` is a
+dot of the key's own: `"a\\.b.c"` is `c` in the section `a.b`. A `.properties` file has no levels, so
+there a dot is only a dot, as in `mixin.ai.pathing`, and a list is an error. One key can't be a section
+of another (`a` and `a.b`), and a key under what is a value in the file (`top.sub` where `top = 1`)
+stops the start, since it can't be set.
+
+A key given here is written over at every start, so an edit of it on the machine doesn't last. Every
+other key in the file is left alone.
+
+**`.text(contents)`** is the whole file instead, written at every start, in any format and with any
+extension: for what `.set()` can't say, or a mod that needs a complete file. A `ConfigFile` has one or
+the other.
+
+**Taking a setting out.** A key the configuration set before, and no longer does, is taken out of the
+file at the next start, so the mod is back to its default. A section left with nothing in it stays,
+empty. A file that was a `.text()`, and is no longer given, is deleted. Keys that were never given
+here aren't touched.
+
+**The first start.** Before a mod's first start its file doesn't exist, so it has only the keys given.
+Lithium, FabricProxy-Lite, LuckPerms, Paper and Velocity all take that, and fill in the rest or use
+their defaults; a mod that doesn't can have its whole file from `.text()`.
+
+**Forge and NeoForge world configs** are in `world/serverconfig/`, which is made with the world. Give
+them as `defaultconfigs/<file>`, which a new world copies.
+
+A server that `.set()`s keys in a `.json5` file also gets Python, about 200 MB, to read it. The values
+are in the Nix store, which every user of the machine can read: no passwords.
+
 ## Memory and Java
 
 ```java

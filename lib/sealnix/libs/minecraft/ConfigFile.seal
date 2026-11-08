@@ -1,0 +1,296 @@
+package sealnix.libs.minecraft;
+
+import seal.util.List;
+
+// A mod's or plugin's configuration file, for Server.config(): a path in the server's folder, and
+// either settings, which change only the keys they name, or the whole text of the file.
+//
+//     new ConfigFile("config/mymod.toml")
+//         .set("general.threads", 4)                // dots nest; \\. is a dot of the key's own
+//         .set("general.fastMath", true)
+//         .set("worlds", ["overworld", "nether"])
+//
+//     new ConfigFile("config/other.json5").text("{ enabled: true }")
+//
+// The format is the file's extension: .toml, .yaml or .yml, .json, .json5, or .properties, whose keys
+// don't nest, so a dot is only a dot. Its values are in the Nix store, which every user of the machine
+// can read: no passwords.
+class ConfigFile {
+    // A setting: its key, its value as JSON, as a .properties file has it, and whether it is a list,
+    // which a .properties file can't say.
+    record Setting(string key, string json, string plain, bit list) { }
+
+    string path;
+    List<Setting> settings = new List();
+    string whole = "";
+    bit wholeGiven = false;
+    string badNumber = "";                   // a key set to NaN or Infinity, which no format can say
+
+    // A file by its path in the server's folder: "config/mymod.toml", "plugins/LuckPerms/config.yml".
+    public new(string path) {
+        this.path = path;
+    }
+
+    // A key of the file, set at every start, the rest of the file left alone. Given again, the last.
+    public ConfigFile set(string key, string value) {
+        return put(key, quote(value), value, false);
+    }
+
+    public ConfigFile set(string key, int<<64>> value) {
+        return put(key, "" + value, "" + value, false);
+    }
+
+    public ConfigFile set(string key, bit value) {
+        string text = value ? "true" : "false";
+        return put(key, text, text, false);
+    }
+
+    public ConfigFile set(string key, double value) {
+        string number = checked(key, value);
+        return put(key, number, number, false);
+    }
+
+    // A list, in place of the one there.
+    public ConfigFile set(string key, array<string> values) {
+        StringBuilder b = new StringBuilder();
+        for (string v : values) { b.append(b.length() > 0 ? "," : "").append(quote(v)); }
+        return put(key, "[" + b.toString() + "]", "", true);
+    }
+
+    public ConfigFile set(string key, array<int> values) {
+        StringBuilder b = new StringBuilder();
+        for (int v : values) { b.append(b.length() > 0 ? "," : "").append("" + v); }
+        return put(key, "[" + b.toString() + "]", "", true);
+    }
+
+    public ConfigFile set(string key, array<int<<64>>> values) {
+        StringBuilder b = new StringBuilder();
+        for (int<<64>> v : values) { b.append(b.length() > 0 ? "," : "").append("" + v); }
+        return put(key, "[" + b.toString() + "]", "", true);
+    }
+
+    public ConfigFile set(string key, array<bit> values) {
+        StringBuilder b = new StringBuilder();
+        for (bit v : values) { b.append(b.length() > 0 ? "," : "").append(v ? "true" : "false"); }
+        return put(key, "[" + b.toString() + "]", "", true);
+    }
+
+    public ConfigFile set(string key, array<double> values) {
+        StringBuilder b = new StringBuilder();
+        for (double v : values) { b.append(b.length() > 0 ? "," : "").append(checked(key, v)); }
+        return put(key, "[" + b.toString() + "]", "", true);
+    }
+
+    // The whole file, written at every start, in any format: for what set() can't say, or a mod that
+    // needs a whole file.
+    public ConfigFile text(string contents) {
+        whole = contents;
+        wholeGiven = true;
+        return this;
+    }
+
+    ConfigFile put(string key, string json, string plain, bit list) {
+        Setting s = new Setting(key, json, plain, list);
+        for (int k = 0; k < settings.size(); k++) {
+            if (settings.get(k).key == key) {
+                settings.set(k, s);
+                return this;
+            }
+        }
+        settings.add(s);
+        return this;
+    }
+
+    string checked(string key, double value) {
+        string number = "" + value;
+        if (number.contains("NaN") || number.contains("Infinity")) { badNumber = key; }
+        return number;
+    }
+
+    string format() {
+        if (path.endsWith(".toml")) { return "toml"; }
+        if (path.endsWith(".yaml") || path.endsWith(".yml")) { return "yaml"; }
+        if (path.endsWith(".json")) { return "json"; }
+        if (path.endsWith(".json5")) { return "json5"; }
+        if (path.endsWith(".properties")) { return "properties"; }
+        return "";
+    }
+
+    private<Server> string filePath() {
+        return path;
+    }
+
+    // Whether a start reads this file as JSON5, which takes Python.
+    private<Server> bit editsJson5() {
+        return !settings.isEmpty() && format() == "json5";
+    }
+
+    // A key's parts: split at its dots, but for \. which is a dot of the key's own.
+    List<string> parts(string key) {
+        List<string> list = new List();
+        StringBuilder b = new StringBuilder();
+        for (int k = 0; k < key.length(); k++) {
+            char c = key.charAt(k);
+            if (c == '\\' && k + 1 < key.length() && key.charAt(k + 1) == '.') {
+                b.append('.');
+                k++;
+            } else if (c == '.') {
+                list.add(b.toString());
+                b = new StringBuilder();
+            } else {
+                b.append(c);
+            }
+        }
+        list.add(b.toString());
+        return list;
+    }
+
+    // Whether one key's parts begin the other's: a value can't also be a section.
+    bit nests(List<string> a, List<string> b) {
+        int shorter = a.size() < b.size() ? a.size() : b.size();
+        for (int k = 0; k < shorter; k++) {
+            if (a.get(k) != b.get(k)) { return false; }
+        }
+        return true;
+    }
+
+    private<Server> void check(string about) {
+        string where = about + "the config file \"" + path + "\" ";
+        if (path.length() == 0 || path.startsWith("/") || path.contains("\n") || path.contains("\t")) {
+            throw new IllegalArgumentException(where + "isn't a path in the server's folder, as \"config/mymod.toml\"");
+        }
+        List<string> folders = path.split('/');
+        for (string f : folders) {
+            if (f.length() == 0 || f == "." || f == "..") {
+                throw new IllegalArgumentException(where + "isn't a path in the server's folder, as \"config/mymod.toml\"");
+            }
+        }
+        if (folders.get(0) == ".seal-mc") {
+            throw new IllegalArgumentException(where + "is in .seal-mc, which is this library's own");
+        }
+        if (wholeGiven && !settings.isEmpty()) {
+            throw new IllegalArgumentException(where + "has both text(), which is the whole file, and set()");
+        }
+        if (!wholeGiven && settings.isEmpty()) {
+            throw new IllegalArgumentException(where + "says nothing: set() a key, or text() the whole file");
+        }
+        if (wholeGiven) { return; }
+        if (format().length() == 0) {
+            throw new IllegalArgumentException(where + "has no format to set() keys in: .toml, .yaml, .yml, .json, .json5 "
+                + "or .properties; text() writes any other");
+        }
+        if (badNumber.length() > 0) {
+            throw new IllegalArgumentException(where + "can't set " + badNumber + " to NaN or Infinity");
+        }
+        bit flat = format() == "properties";
+        for (int k = 0; k < settings.size(); k++) {
+            Setting s = settings.get(k);
+            bit empty = s.key.length() == 0 || s.key.contains("\n") || s.key.contains("\t");
+            List<string> these = parts(s.key);
+            if (!flat) {
+                for (string p : these) { empty = empty || p.length() == 0; }
+            }
+            if (empty) {
+                throw new IllegalArgumentException(where + "has no key \"" + s.key + "\"");
+            }
+            if (flat && s.list) {
+                throw new IllegalArgumentException(where + "can't set " + s.key + " to a list: a .properties file has none");
+            }
+            for (int j = 0; j < k && !flat; j++) {
+                if (nests(parts(settings.get(j).key), these)) {
+                    throw new IllegalArgumentException(where + "sets both " + settings.get(j).key + " and " + s.key
+                        + ": a value can't also be a section");
+                }
+            }
+        }
+    }
+
+    // The file, as a start reads it: {"path", "format", "text" (or null), "set": [{"key": [parts], "value"}]}.
+    private<Server> string spec() {
+        bit flat = format() == "properties";
+        StringBuilder b = new StringBuilder();
+        b.append("{\"path\":").append(quote(path));
+        b.append(",\"format\":").append(quote(format()));
+        b.append(",\"text\":").append(wholeGiven ? quote(whole) : "null");
+        b.append(",\"set\":[");
+        for (int k = 0; k < settings.size(); k++) {
+            Setting s = settings.get(k);
+            if (k > 0) { b.append(','); }
+            b.append("{\"key\":[");
+            if (flat) {
+                b.append(quote(escapeKey(s.key)));
+                b.append("],\"value\":").append(quote(escapeValue(s.plain)));
+            } else {
+                List<string> these = parts(s.key);
+                for (int j = 0; j < these.size(); j++) {
+                    if (j > 0) { b.append(','); }
+                    b.append(quote(these.get(j)));
+                }
+                b.append("],\"value\":").append(s.json);
+            }
+            b.append('}');
+        }
+        b.append("]}");
+        return b.toString();
+    }
+
+    // A string in JSON.
+    static string quote(string s) {
+        string digits = "0123456789abcdef";
+        StringBuilder b = new StringBuilder();
+        b.append('"');
+        for (int k = 0; k < s.length(); k++) {
+            char c = s.charAt(k);
+            if (c == '"') {
+                b.append("\\\"");
+            } else if (c == '\\') {
+                b.append("\\\\");
+            } else if (c == '\n') {
+                b.append("\\n");
+            } else if (c == '\r') {
+                b.append("\\r");
+            } else if (c == '\t') {
+                b.append("\\t");
+            } else if (c < ' ') {
+                b.append("\\u00").append(digits.charAt(c / 16)).append(digits.charAt(c % 16));
+            } else {
+                b.append(c);
+            }
+        }
+        b.append('"');
+        return b.toString();
+    }
+
+    // A key of a .properties file, as Java's Properties writes it.
+    static string escapeKey(string s) {
+        StringBuilder b = new StringBuilder();
+        for (int k = 0; k < s.length(); k++) {
+            char c = s.charAt(k);
+            if (c == '\\' || c == ' ' || c == '=' || c == ':' || c == '#' || c == '!') { b.append('\\'); }
+            b.append(c);
+        }
+        return b.toString();
+    }
+
+    // A value of a .properties file, as Java's Properties reads it.
+    static string escapeValue(string s) {
+        StringBuilder b = new StringBuilder();
+        for (int k = 0; k < s.length(); k++) {
+            char c = s.charAt(k);
+            if (c == '\\') {
+                b.append("\\\\");
+            } else if (c == '\n') {
+                b.append("\\n");
+            } else if (c == '\r') {
+                b.append("\\r");
+            } else if (c == '\t') {
+                b.append("\\t");
+            } else if (c == ' ' && k == 0) {
+                b.append("\\ ");
+            } else {
+                b.append(c);
+            }
+        }
+        return b.toString();
+    }
+}
