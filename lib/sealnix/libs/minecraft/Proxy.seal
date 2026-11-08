@@ -26,12 +26,13 @@ import seal.util.List;
 //         .install();                               // the proxy, lobby and smp
 //
 // Modern and BungeeGuard forwarding are signed with a secret: forwarding.secret in the proxy's folder,
-// made at its first start, unless forwardingSecretFile() names one (as sops-nix or agenix give). The
-// servers behind the proxy read it each time they start, so it is never in the Nix store; Paper keeps
+// made at its first start, unless forwardingSecretFile() names one (as sops-nix or agenix give), or
+// generateSecretFile() asks for a new one at every rebuild. The servers behind the proxy read it each time they start, so it is never in the Nix store; Paper keeps
 // it in its config/paper-global.yml, so their folders are the user minecraft's alone.
 class Proxy extends(Service<Proxy>) {
     private<Server> Forwarding forwardingMode = Forwarding.MODERN;
     string secretFile = "";                  // empty for forwarding.secret in its folder
+    bit generatedSecret = false;             // it is made anew at every rebuild
     List<string> serverNames = new List();
     List<string> serverAddresses = new List();   // empty for one given as a Server, at 127.0.0.1
     List<Server> behind = new List();        // the servers given as Servers
@@ -56,8 +57,24 @@ class Proxy extends(Service<Proxy>) {
     // "/run/secrets/velocity". Unless given, forwarding.secret in the proxy's folder, made at its
     // first start.
     public Proxy forwardingSecretFile(string path) {
-        secretFile = path;
+        chooseSecret(path, false);
         return this;
+    }
+
+    // Its forwarding secret, made anew and at random in this file, at every nixos-rebuild switch and
+    // every boot, which restarts the proxy and the servers behind it, as they all must have the new one.
+    public Proxy generateSecretFile(string path) {
+        chooseSecret(path, true);
+        return this;
+    }
+
+    void chooseSecret(string path, bit generated) {
+        if (secretFile.length() > 0 && (secretFile != path || generatedSecret != generated)) {
+            throw new IllegalStateException("Minecraft server " + name + ": its forwarding secret is given twice: "
+                + "forwardingSecretFile() or generateSecretFile(), once");
+        }
+        secretFile = path;
+        generatedSecret = generated;
     }
 
     // A server it forwards to, by its address, "host:port": one set up by hand to take its forwarding.
@@ -100,6 +117,33 @@ class Proxy extends(Service<Proxy>) {
     public void install() {
         super.install();
         for (Server b : behind) { b.installService(); }
+        if (generatedSecret) { installSecretGenerator(); }
+    }
+
+    // A NixOS activation script, which runs on the machine at every rebuild and boot, unlike Seal, whose
+    // results are in the Nix store for everyone to read. The file appears whole, so that nothing reads
+    // half of it, and what is on the restart list restarts, as nothing else tells systemd it changed.
+    void installSecretGenerator() {
+        List<string> units = new List();
+        units.add("minecraft-" + name + ".service");
+        for (Server b : behind) { units.add("minecraft-" + b.name + ".service"); }
+        StringBuilder b = new StringBuilder();
+        b.append("secret=").append(sh(secretFile)).append('\n');
+        b.append("if mkdir -p \"$(dirname -- \"$secret\")\" \\\n");
+        b.append("  && (umask 077 && value=$(head -c 32 /dev/urandom | sha256sum | cut -d ' ' -f 1) && [ -n \"$value\" ] \\\n");
+        b.append("    && printf '%s' \"$value\" > \"$secret.part\") \\\n");
+        b.append("  && chown minecraft:minecraft \"$secret.part\" \\\n");
+        b.append("  && mv -f \"$secret.part\" \"$secret\"; then\n");
+        b.append("  if [ -d /run/nixos ]; then\n");
+        b.append("    printf '%s\\n' ").append(words(units)).append(" >> /run/nixos/activation-restart-list\n");
+        b.append("  fi\n");
+        b.append("else\n");
+        b.append("  echo \"minecraft: can't make a new forwarding secret in $secret\" >&2\n");
+        b.append("  false\n");
+        b.append("fi\n");
+        string script = "system.activationScripts.minecraft-" + name + "-secret";
+        Config.set(script + ".text", b.toString());
+        Config.setRaw(script + ".deps", "[ \"users\" ]");
     }
 
     private<Service> string loaderId() { return "velocity"; }
@@ -128,6 +172,18 @@ class Proxy extends(Service<Proxy>) {
         if (secretFile.length() > 0 && (!secretFile.startsWith("/") || !plain(secretFile, "/._-+@"))) {
             throw new IllegalArgumentException(about + "the forwarding secret file is a path, as \"/run/secrets/velocity\", "
                 + "not \"" + secretFile + "\"");
+        }
+        if (generatedSecret) {
+            if (forwardingMode != Forwarding.MODERN && forwardingMode != Forwarding.BUNGEEGUARD) {
+                throw new IllegalArgumentException(about + "generateSecretFile() makes a secret that "
+                    + forwardingMode.name() + " forwarding doesn't use: MODERN and BUNGEEGUARD do");
+            }
+            for (string hidden : ["/home/", "/root/", "/tmp/", "/var/tmp/", "/run/user/", "/nix/"]) {
+                if (secretFile.startsWith(hidden)) {
+                    throw new IllegalArgumentException(about + "generateSecretFile(\"" + secretFile + "\") is under " + hidden
+                        + ", where the services can't read it; as \"/var/lib/minecraft-secrets/proxy\"");
+                }
+            }
         }
         for (int k = 0; k < serverNames.size(); k++) {
             string s = serverNames.get(k);

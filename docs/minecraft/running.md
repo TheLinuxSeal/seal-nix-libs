@@ -114,7 +114,7 @@ firewall, so an RCON client on the machine reaches it: `mcrcon -P 25575 -p <pass
   the machine, as the forwarding secret does.
 - **The CurseForge API key** is never in the store, and on no command line: it is read from its file
   when a server has something to ask, and only CurseForge's API gets it, not its download servers.
-- **The forwarding secret** is never in the store: the proxy's own is `0600`, a given one is the
+- **The forwarding secret** is never in the store: the proxy's own, and a generated one, is `0600`, a given one is the
   file it is, and the servers behind a proxy read it as they start. Paper writes it into its config,
   so those servers' folders are `0750`.
 - **The sandbox**: each server runs as `minecraft`, can write only its own folder, and can't see

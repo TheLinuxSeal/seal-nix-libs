@@ -71,6 +71,22 @@
             touch $out
           '';
 
+        # a forwarding secret made anew at every rebuild, which restarts the proxy and its servers
+        minecraft-secret =
+          let
+            set = settings (generate system ./tests/minecraft-secret/Main.seal);
+            s = set.systemd.services;
+            script = set.system.activationScripts.minecraft-proxy-secret;
+            file = "/var/lib/minecraft-secrets/proxy";
+          in
+          assert script.deps == [ "users" ];
+          assert lib.hasInfix "secret='${file}'" script.text;
+          assert lib.hasInfix "'minecraft-proxy.service' 'minecraft-lobby.service' >> /run/nixos/activation-restart-list" script.text;
+          assert lib.hasInfix "OWN_SECRET=0" s.minecraft-proxy.preStart;
+          assert lib.hasInfix "SECRET='${file}'" s.minecraft-proxy.preStart;
+          assert lib.hasInfix "SECRET='${file}'" s.minecraft-lobby.script;
+          pkgs.runCommand "minecraft-secret" { } "bash -n ${pkgs.writeText "secret" script.text}; touch $out";
+
         # a CurseForge mod by its project ID, with no API key
         minecraft-nokey =
           let start = (settings (generate system ./tests/minecraft-nokey/Main.seal)).systemd.services.minecraft-survival.preStart; in

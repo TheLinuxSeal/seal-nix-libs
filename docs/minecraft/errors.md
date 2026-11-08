@@ -61,7 +61,10 @@ And for the server: `two config files are "<path>"; give all its settings to one
 
 | Error | Means |
 | --- | --- |
-| `the forwarding secret file is a path, as "/run/secrets/velocity", not "<path>"` | `forwardingSecretFile()` isn't an absolute path, or has a character other than letters, digits, `/`, `.`, `_`, `-`, `+` and `@`. |
+| `the forwarding secret file is a path, as "/run/secrets/velocity", not "<path>"` | `forwardingSecretFile()` or `generateSecretFile()` isn't an absolute path, or has a character other than letters, digits, `/`, `.`, `_`, `-`, `+` and `@`. |
+| `its forwarding secret is given twice: forwardingSecretFile() or generateSecretFile(), once` | Both on one proxy, or two different files. |
+| `generateSecretFile("<path>") is under <folder>, where the services can't read it` | The file would be out of the services' sight: `/home`, `/root`, `/tmp`, `/var/tmp`, `/run/user` or `/nix`. |
+| `generateSecretFile() makes a secret that <mode> forwarding doesn't use: MODERN and BUNGEEGUARD do` | `NONE` and `LEGACY` have no secret. |
 | `no server name "<name>": a name is letters, digits, - and _, and not try` | `server(name, address)` with another name. |
 | `two servers are named <name>` | Two of the proxy's servers have one name. |
 | `no address "<address>" for the server <name>: an address is host:port, as "10.0.0.5:25565"` | The address is empty, or has a character an address doesn't. |
@@ -121,6 +124,10 @@ reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts wi
 
 One line doesn't stop the start: `config: <path>: can't be read, so what is no longer set stays in it`. A
 setting was taken out of the configuration, but the file can't be edited, so it stays at its last value.
+
+During `nixos-rebuild`, not a start, a proxy with `generateSecretFile()` can say `minecraft: can't make a new
+forwarding secret in <path>`: its folder can't be made, or the user `minecraft` doesn't exist yet. The old
+secret stays, and the rebuild reports the failure.
 
 And from the server itself, in the same log:
 

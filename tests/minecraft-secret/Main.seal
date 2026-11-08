@@ -1,0 +1,14 @@
+import sealnix.*;
+import sealnix.libs.minecraft.*;
+
+// A proxy whose forwarding secret is made anew at every rebuild, and a server behind it.
+class Main {
+    static void main() {
+        var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25566);
+
+        new Proxy("proxy")
+            .generateSecretFile("/var/lib/minecraft-secrets/proxy")
+            .server(lobby)
+            .install();
+    }
+}

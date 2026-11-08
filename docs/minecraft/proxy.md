@@ -78,6 +78,15 @@ absolute path (letters, digits, `/`, `.`, `_`, `-`, `+`, `@`), to a file the use
 (with sops-nix, `owner = "minecraft"`). If it is missing or empty, a `MODERN` or `BUNGEEGUARD` proxy
 doesn't start. A new line at its end is no matter.
 
+`.generateSecretFile(path)` makes a new, random secret in that file, at every `nixos-rebuild switch` and
+every boot, readable by the user `minecraft` alone. It is an absolute path, not under `/home`, `/root`,
+`/tmp`, `/var/tmp`, `/run/user` or `/nix`, where the services can't read it, as
+`"/var/lib/minecraft-secrets/proxy"`. Every server has to have the same secret, so each rebuild restarts
+the proxy and the servers behind it, even if nothing about them changed, which disconnects their
+players. A server given by its address isn't restarted, and keeps the old secret, so it can't take
+part, unless it reads this file itself as it starts. It is for `MODERN` and `BUNGEEGUARD`, the
+forwarding that uses a secret.
+
 The servers behind the proxy read the secret each time they start, so it is never in the Nix store.
 Paper writes it into its `config/paper-global.yml`, so their folders can be read by the user
 `minecraft` alone ([Running](running.md#security)).

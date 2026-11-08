@@ -75,6 +75,7 @@ its folder, `/var/lib/minecraft/<name>`: letters, digits, `-` and `_`.
 | `.autoUpdate()` | all | off | [Updates](servers.md#updates) |
 | `.forwarding(mode)` | `Proxy` | `Forwarding.MODERN` | [Forwarding](proxy.md#forwarding) |
 | `.forwardingSecretFile(path)` | `Proxy` | made by the proxy | [The secret](proxy.md#the-forwarding-secret) |
+| `.generateSecretFile(path)` | `Proxy` | made by the proxy, once | [The secret](proxy.md#the-forwarding-secret): a new one at every rebuild |
 | `.server(name, address)` | `Proxy` | none | [Servers](proxy.md#the-proxys-servers) |
 | `.server(server)` | `Proxy` | none | [Servers behind a proxy](proxy.md#servers-behind-a-proxy) |
 | `.tryServer(name)` | `Proxy` | every server, in order | [The try list](proxy.md#the-try-list) |
