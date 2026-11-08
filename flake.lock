@@ -30,11 +30,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794018813,
-        "narHash": "sha256-ql2qRzNMrwfF6TMwJoglznWrW9pVEqHwCnpF4l9EokM=",
+        "lastModified": 1794115322,
+        "narHash": "sha256-j0hOrWbWU6dFzun6FNion+J6E6+lL3DhHxZEpVwXbqg=",
         "owner": "TheLinuxSeal",
         "repo": "seal-lang",
-        "rev": "262fc91eb0b035ea5c534512abcf09eb26b66964",
+        "rev": "d1403c9124b8c012e9c16f493f28cd4a8ee9b16b",
         "type": "github"
       },
       "original": {
@@ -51,11 +51,11 @@
         "seal": "seal"
       },
       "locked": {
-        "lastModified": 1794113107,
-        "narHash": "sha256-nA6oo3472/+99U45yC2aXN65EB8WYPY9scuhZmmELjQ=",
+        "lastModified": 1794115521,
+        "narHash": "sha256-RhtAI4HRk3Xl/bii1KQnVCbQoAwax/5bPUlFuxOrzII=",
         "owner": "TheLinuxSeal",
         "repo": "seal-nix",
-        "rev": "ea0953f60a69ba4aa057c761fb5212672392f02f",
+        "rev": "9ba8a2ab3afdb0d5710199d9d0aa6a77c583c9c9",
         "type": "github"
       },
       "original": {
