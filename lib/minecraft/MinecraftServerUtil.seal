@@ -52,8 +52,11 @@ import seal.util.List;
 // when its service starts (preStart): the loader, then each mod or plugin, each checked against the
 // hash its source gives (Mojang's sha1, PaperMC's sha256, Modrinth's sha512, Forge's and NeoForge's
 // Maven sha1). What a start chose is kept in .seal-mc/, so the next one downloads nothing unless the
-// configuration changed, or autoUpdate() asks for the newest at every start. Mods and plugins this
-// put there, which the configuration no longer names, are removed; ones put there by hand are kept.
+// configuration changed, or autoUpdate() asks for the newest at every start; a new loader or Minecraft
+// version chooses every mod and plugin again. Mods and plugins this put there, which the configuration
+// no longer names, are removed; ones put there by hand are kept.
+//
+// docs/minecraft, in seal-nix-libs, is all of it: every setting, the proxy, the service, the errors.
 //
 // A server lives in /var/lib/minecraft/<name>, runs as the user minecraft, and saves and stops on
 // systemctl stop. nixos-rebuild switch restarts a server whose configuration changed. The first start
@@ -396,6 +399,10 @@ class MinecraftServerUtil {
             }
             if (!plugins.isEmpty() && !plugged) {
                 throw new IllegalArgumentException("Minecraft server " + name + ": " + describe() + " takes no plugins; Paper and Velocity do");
+            }
+            if (loader == Loader.VELOCITY && !propertyKeys.isEmpty()) {
+                throw new IllegalArgumentException("Minecraft server " + name + ": " + describe() + " has no server.properties; "
+                    + "a proxy's own settings are its velocity.toml's");
             }
             for (string m : mods) { checkProject(m); }
             for (string p : plugins) { checkProject(p); }
@@ -846,20 +853,24 @@ class MinecraftServerUtil {
 
         # sync DIR LOADERS GAMES SPEC...: the Modrinth projects named, in DIR. A file this put there
         # before, which no project names now, goes; LOADERS and GAMES are JSON lists, or GAMES null.
+        # The files chosen are kept, unless autoUpdate, or the loader or Minecraft version they were
+        # chosen for has changed: then every project is chosen again.
         sync() {
           local dir=$1 loaders=$2 games=$3
           shift 3
           mkdir -p "$dir"
-          local lock=".seal-mc/$dir.lock" next=".seal-mc/$dir.lock.next"
+          local lock=".seal-mc/$dir.lock" next=".seal-mc/$dir.lock.next" made=".seal-mc/$dir.for"
           touch "$lock"
           : > "$next"
+          local again=$AUTO_UPDATE
+          if [ "$(cat "$made" 2>/dev/null)" != "$LOADER $MC" ]; then again=1; fi
           local spec slug pin old query versions v file name
           for spec in "$@"; do
             slug=${spec%%@*}
             pin=
             if [ "$spec" != "$slug" ]; then pin=${spec#*@}; fi
             old=$(awk -F '\\t' -v s="$spec" '$1 == s { print $2 }' "$lock")
-            if [ "$AUTO_UPDATE" != 1 ] && [ -n "$old" ] && [ -f "$dir/$old" ]; then
+            if [ "$again" != 1 ] && [ -n "$old" ] && [ -f "$dir/$old" ]; then
               printf '%s\\t%s\\n' "$spec" "$old" >> "$next"
               continue
             fi
@@ -885,6 +896,7 @@ class MinecraftServerUtil {
             fi
           done < "$lock"
           mv -f "$next" "$lock"
+          echo "$LOADER $MC" > "$made"
         }
 
         games=$(jq -cn --arg v "$MC" '[$v]')
