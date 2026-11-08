@@ -17,14 +17,15 @@ Every server has a loader, `.loader()`; without one, the configuration doesn't b
 | `FORGE` | Forge | mods | maven.minecraftforge.net |
 | `NEOFORGE` | NeoForge | mods | maven.neoforged.net |
 | `PAPER` | Paper | plugins | PaperMC (fill.papermc.io) |
-| `VELOCITY` | Velocity, a proxy | plugins | PaperMC (fill.papermc.io); see [Velocity proxies](proxy.md) |
+
+A Velocity proxy isn't a loader: it is a `new Proxy(name)`, in [Velocity proxies](proxy.md).
 
 The name, `new Server(name)`, is the server's service (`minecraft-<name>`) and folder
 (`/var/lib/minecraft/<name>`): letters, digits, `-` and `_`. Each server installed has a name of its own.
 
 ## Minecraft versions
 
-`.minecraftVersion(version)` is every server's but a proxy's, which takes none (its Velocity's own
+`.minecraftVersion(version)` is every `Server`'s; a `Proxy` has none (its Velocity's own
 version is [`loaderVersion()`](#loader-versions)); without it, the configuration doesn't build.
 
 The version is Mojang's: `"26.3"`, `"1.21.1"`, `"1.20.4"`. It has letters, digits, `.`, `-`, `_` and
@@ -99,7 +100,7 @@ gets what its forwarding needs by itself: [Servers behind a proxy](proxy.md#serv
 .property("difficulty", "hard")
 ```
 
-Every server but a proxy needs `.acceptEula()`, the owner's acceptance of Mojang's EULA
+Every `Server` needs `.acceptEula()`, the owner's acceptance of Mojang's EULA
 (https://aka.ms/MinecraftEULA): without it, the configuration doesn't build. It writes `eula=true` to
 `eula.txt`.
 
@@ -114,7 +115,7 @@ properties given, so a property can still change them ([Servers behind a proxy](
 The values are in the Nix store, which every user of the machine can read: no passwords, as
 `rcon.password` ([Running](running.md#commands-and-rcon)).
 
-A proxy has no `server.properties`: `.property()` on one is an error. Its settings are in
+A proxy has no `server.properties`, and no `.property()`. Its settings are in
 `velocity.toml` ([Velocity proxies](proxy.md#velocitytoml)).
 
 ## Config files

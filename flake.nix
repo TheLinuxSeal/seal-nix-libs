@@ -63,7 +63,7 @@
           assert lib.hasInfix ''try = ["lobby", "smp"]'' s.minecraft-proxy.preStart;
           assert lib.hasInfix ''"smp.example.com" = ["smp"]'' s.minecraft-proxy.preStart;
           pkgs.runCommand "minecraft" { } ''
-            head -1 ${module} | grep -q "from Main.seal, sealnix/libs/minecraft/ConfigFile.seal, sealnix/libs/minecraft/Forwarding.seal, sealnix/libs/minecraft/Loader.seal, sealnix/libs/minecraft/Server.seal:"
+            head -1 ${module} | grep -q "from Main.seal, sealnix/libs/minecraft/ConfigFile.seal, sealnix/libs/minecraft/Forwarding.seal, sealnix/libs/minecraft/Loader.seal, sealnix/libs/minecraft/Proxy.seal, sealnix/libs/minecraft/Server.seal, sealnix/libs/minecraft/Service.seal:"
             test "$(grep -c 'ps.json5' ${module})" = 1
             ${lib.concatStrings (lib.mapAttrsToList (name: unit: parse "${name}-preStart" unit.preStart + parse "${name}-script" unit.script) s)}
             touch $out

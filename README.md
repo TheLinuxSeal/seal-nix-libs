@@ -63,7 +63,8 @@ Nix, `seal-nix.lib.generate { ...; libraries = [ seal-nix-libs.sealLibrary ]; }`
 
 A library is a Seal package, `sealnix.libs.<name>`, in its folder, `lib/sealnix/libs/<name>/`:
 `package sealnix.libs.minecraft;` is at the top of each of `lib/sealnix/libs/minecraft`'s files
-(`Server.seal`, `Loader.seal`, `Forwarding.seal`). It imports `sealnix.*` for `Config` and `Packages`, as a
+(`Service.seal`, `Server.seal`, `Proxy.seal`, `Loader.seal`, `Forwarding.seal`, `ConfigFile.seal`). It
+imports `sealnix.*` for `Config` and `Packages`, as a
 configuration does, and its public classes are what configurations import. The package keeps its
 names out of theirs.
 

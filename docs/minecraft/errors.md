@@ -10,27 +10,27 @@ anything changes on the machine. The build's log says, after `uncaught IllegalAr
 `loaderVersion()`, a mod or a pin exists is found out only when the server starts
 ([When a server starts](#when-a-server-starts)).
 
+A setting its type doesn't have doesn't compile, and Seal says so, as `Proxy has no method mod` or
+`Server has no method forwarding`. `Loader has no member VELOCITY` means a proxy is a `new Proxy(name)`.
+
 ### Any server
 
 | Error | Means |
 | --- | --- |
 | `a name is letters, digits, - and _` | The server's name has another character, or is empty. |
-| `no loader: loader(Loader.FABRIC), say, or Loader.VANILLA, FORGE, NEOFORGE, PAPER, or VELOCITY for a proxy` | The server has no `.loader()`. |
+| `no loader: loader(Loader.FABRIC), say, or Loader.VANILLA, FORGE, NEOFORGE or PAPER; a proxy is a new Proxy(name)` | The server has no `.loader()`. |
 | `no Minecraft version: minecraftVersion("26.3"), say, or minecraftVersion("latest")` | The server has no `.minecraftVersion()`. |
-| `a proxy takes no Minecraft version; its Velocity's own version is loaderVersion()'s` | `.minecraftVersion()` on a proxy. |
 | `no Minecraft version "<version>"` | The version has a character a version doesn't, or is empty. |
 | `no loader version "<version>"` | `loaderVersion()` has a character a version doesn't. |
 | `memory is a size, as "4G" or "512M"` | `memory()` isn't a number and a unit. |
 | `no port <port>` | The port isn't between 1 and 65535. |
-| `a server runs only once its owner accepts Mojang's EULA (https://aka.ms/MinecraftEULA): acceptEula()` | Every server but a proxy needs `.acceptEula()`. |
-| `<loader> takes no mods; Fabric, Forge and NeoForge do` | `.mod()` on vanilla, Paper or Velocity; Paper and Velocity take `.plugin()`. |
+| `a server runs only once its owner accepts Mojang's EULA (https://aka.ms/MinecraftEULA): acceptEula()` | Every `Server` needs `.acceptEula()`. |
+| `<loader> takes no mods; Fabric, Forge and NeoForge do` | `.mod()` on vanilla or Paper; Paper takes `.plugin()`. |
 | `<loader> takes no plugins; Paper and Velocity do` | `.plugin()` on vanilla, Fabric, Forge or NeoForge; those take `.mod()`. |
-| `velocity has no server.properties; a proxy's own settings are its velocity.toml's` | `.property()` on a proxy: [velocity.toml](proxy.md#velocitytoml). |
 | `no Modrinth project "<project>"` | A mod's or plugin's project has a character other than letters, digits, `.`, `-`, `_` and `+`, or is empty. |
 | `no Modrinth project "lithium@mc26.3-0.26.3-fabric": a version is mod's second argument, mod("lithium", "mc26.3-0.26.3-fabric")` | The old `"project@version"`: the version is an argument of its own now. |
 | `no version "<version>" of <project>` | A mod's or plugin's version has a tab or a new line. |
 | `no property <key>` | A property's key has a character other than letters, digits, `.`, `-` and `_`, or its value a new line. |
-| `<setting>() is a Velocity proxy's, and <loader> is no proxy` | `forwarding()`, `forwardingSecretFile()`, `server()`, `tryServer()` or `forcedHost()` on a server. |
 | `is installed twice: install each server once, each with a name of its own` | `install()` twice, or two servers of one name. |
 
 ### A config file
@@ -69,7 +69,6 @@ These name the proxy, then the server: `Minecraft server proxy: lobby ...`.
 
 | Error | Means |
 | --- | --- |
-| `is a proxy itself` | A proxy given to a proxy. |
 | `has the proxy's own name` | A server named as its proxy is. |
 | `is behind the proxy <proxy> already: a server is behind one proxy` | The server is given to two proxies. This one names the second proxy. |
 | `is installed on its own already: the proxy's install() installs it, so leave out its own` | The server's own `install()` came before its proxy's: leave it out. |

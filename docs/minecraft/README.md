@@ -45,42 +45,43 @@ modules = [
 ];
 ```
 
-A Seal file that uses it imports the package, `import sealnix.libs.minecraft.*;`, which has four types: `Server`,
-`Loader` (the loaders), `Forwarding` (a proxy's forwarding modes) and `ConfigFile` (a mod's or plugin's
-config file).
+A Seal file that uses it imports the package, `import sealnix.libs.minecraft.*;`, which has `Server` and
+`Proxy` (a Velocity proxy), each a `Service`, whose settings they share, with `Loader` (a server's
+loaders), `Forwarding` (a proxy's forwarding modes) and `ConfigFile` (a mod's or plugin's config file).
 
 ## Every setting
 
-A server is a `new Server(name)`, and each setting is a method that returns it, so they chain;
-`install()` checks them all, and installs it. The name is the server's service, `minecraft-<name>`, and
+A server is a `new Server(name)`, and a Velocity proxy a `new Proxy(name)`. Each setting is a method
+that returns it, so they chain; `install()` checks them all, and installs it. The name is its service, `minecraft-<name>`, and
 its folder, `/var/lib/minecraft/<name>`: letters, digits, `-` and `_`.
 
 | Setting | For | Default | |
 | --- | --- | --- | --- |
-| `.loader(loader)` | all | none: an error | [Loaders](servers.md#loaders) |
-| `.minecraftVersion(version)` | all but Velocity | none: an error | [Minecraft versions](servers.md#minecraft-versions) |
+| `.loader(loader)` | `Server` | none: an error | [Loaders](servers.md#loaders) |
+| `.minecraftVersion(version)` | `Server` | none: an error | [Minecraft versions](servers.md#minecraft-versions) |
 | `.loaderVersion(version)` | all but vanilla | the newest | [Loader versions](servers.md#loader-versions) |
 | `.port(port)` | all | 25565; a proxy, 25577 | [Ports](servers.md#ports-and-the-firewall) |
 | `.memory(size)` | all | `"2G"` | [Memory and Java](servers.md#memory-and-java) |
 | `.jvmArg(arg)` | all | none | [Memory and Java](servers.md#memory-and-java) |
 | `.jdk(package)` | all | the one the version needs | [Memory and Java](servers.md#memory-and-java) |
-| `.acceptEula()` | all but Velocity | not accepted: an error | [server.properties](servers.md#serverproperties-and-the-eula) |
-| `.property(key, value)` | all but Velocity | none | [server.properties](servers.md#serverproperties-and-the-eula) |
+| `.acceptEula()` | `Server` | not accepted: an error | [server.properties](servers.md#serverproperties-and-the-eula) |
+| `.property(key, value)` | `Server` | none | [server.properties](servers.md#serverproperties-and-the-eula) |
 | `.config(file)` | all | none | [Config files](servers.md#config-files) |
-| `.mod(project)`, `.mod(project, version)` | Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
-| `.plugin(project)`, `.plugin(project, version)` | Paper, Velocity | none | [Mods and plugins](servers.md#mods-and-plugins) |
+| `.mod(project)`, `.mod(project, version)` | `Server`: Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
+| `.plugin(project)`, `.plugin(project, version)` | `Server` on Paper, `Proxy` | none | [Mods and plugins](servers.md#mods-and-plugins) |
 | `.openFirewall(open)` | all | `true` | [Ports](servers.md#ports-and-the-firewall) |
 | `.autoUpdate()` | all | off | [Updates](servers.md#updates) |
-| `.forwarding(mode)` | Velocity | `Forwarding.MODERN` | [Forwarding](proxy.md#forwarding) |
-| `.forwardingSecretFile(path)` | Velocity | made by the proxy | [The secret](proxy.md#the-forwarding-secret) |
-| `.server(name, address)` | Velocity | none | [Servers](proxy.md#the-proxys-servers) |
-| `.server(server)` | Velocity | none | [Servers behind a proxy](proxy.md#servers-behind-a-proxy) |
-| `.tryServer(name)` | Velocity | every server, in order | [The try list](proxy.md#the-try-list) |
-| `.forcedHost(hostname, server)` | Velocity | none | [Forced hosts](proxy.md#forced-hosts) |
+| `.forwarding(mode)` | `Proxy` | `Forwarding.MODERN` | [Forwarding](proxy.md#forwarding) |
+| `.forwardingSecretFile(path)` | `Proxy` | made by the proxy | [The secret](proxy.md#the-forwarding-secret) |
+| `.server(name, address)` | `Proxy` | none | [Servers](proxy.md#the-proxys-servers) |
+| `.server(server)` | `Proxy` | none | [Servers behind a proxy](proxy.md#servers-behind-a-proxy) |
+| `.tryServer(name)` | `Proxy` | every server, in order | [The try list](proxy.md#the-try-list) |
+| `.forcedHost(hostname, server)` | `Proxy` | none | [Forced hosts](proxy.md#forced-hosts) |
 | `.install()` | all | | checks it and installs it; a proxy's, with the servers behind it |
 
-A setting for another kind of server (a mod on Paper, a forwarding mode on Fabric) is an error when the
-configuration builds, as is a value it can't take; [Errors](errors.md) lists them all.
+"all" is a `Server` and a `Proxy`. A setting its type doesn't have (`.mod()` on a `Proxy`) doesn't compile.
+One its loader can't use (a mod on Paper), or a value it can't take, is an error when the configuration
+builds; [Errors](errors.md) lists them all.
 
 ## What it doesn't do
 

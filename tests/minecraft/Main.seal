@@ -26,8 +26,7 @@ class Main {
             .acceptEula().mod("lithium");
         smp.port(25567);                                     // a server given to the proxy can still change
 
-        new Server("proxy")
-            .loader(Loader.VELOCITY)
+        new Proxy("proxy")
             .server(lobby)
             .server(smp)
             .server("creative", "10.0.0.5:25565")

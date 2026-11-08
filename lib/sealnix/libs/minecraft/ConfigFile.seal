@@ -2,7 +2,7 @@ package sealnix.libs.minecraft;
 
 import seal.util.List;
 
-// A mod's or plugin's configuration file, for Server.config(): a path in the server's folder, and
+// A mod's or plugin's configuration file, for config() on a Server or Proxy: a path in the server's folder, and
 // either settings, which change only the keys they name, or the whole text of the file.
 //
 //     new ConfigFile("config/mymod.toml")
@@ -116,12 +116,12 @@ class ConfigFile {
         return "";
     }
 
-    private<Server> string filePath() {
+    private<Service> string filePath() {
         return path;
     }
 
     // Whether a start reads this file as JSON5, which takes Python.
-    private<Server> bit editsJson5() {
+    private<Service> bit editsJson5() {
         return !settings.isEmpty() && format() == "json5";
     }
 
@@ -154,7 +154,7 @@ class ConfigFile {
         return true;
     }
 
-    private<Server> void check(string about) {
+    private<Service> void check(string about) {
         string where = about + "the config file \"" + path + "\" ";
         if (path.length() == 0 || path.startsWith("/") || path.contains("\n") || path.contains("\t")) {
             throw new IllegalArgumentException(where + "isn't a path in the server's folder, as \"config/mymod.toml\"");
@@ -206,7 +206,7 @@ class ConfigFile {
     }
 
     // The file, as a start reads it: {"path", "format", "text" (or null), "set": [{"key": [parts], "value"}]}.
-    private<Server> string spec() {
+    private<Service> string spec() {
         bit flat = format() == "properties";
         StringBuilder b = new StringBuilder();
         b.append("{\"path\":").append(quote(path));

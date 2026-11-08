@@ -1,0 +1,220 @@
+package sealnix.libs.minecraft;
+
+import sealnix.*;
+import seal.util.List;
+
+// A Velocity proxy, for a seal-nix configuration: its service, minecraft-<name>, with its plugins from
+// Modrinth; see Server for how a service works, and Service for the settings they share.
+//
+// A proxy forwards players to the servers it is given, and tells them who each player is, as
+// forwarding() says: MODERN, Velocity's own, unless it says otherwise. A Server given to the proxy is
+// set up behind it: it listens on 127.0.0.1 alone, out of the firewall, with online-mode off (the
+// proxy signs players in), and takes the proxy's forwarding: Paper by itself, Fabric with
+// FabricProxy-Lite, which joins its mods with the Fabric API it needs. The proxy's install() installs
+// it. A server elsewhere is given by its address, and set up by hand.
+//
+//     var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25566);
+//     var smp = new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3").acceptEula().port(25567);
+//
+//     new Proxy("proxy")
+//         .port(25565)
+//         .server(lobby)                            // a player joins the first that is up
+//         .server(smp)
+//         .server("creative", "10.0.0.5:25565")    // set up by hand, to take modern forwarding
+//         .forcedHost("smp.example.com", "smp")    // who connects by this name joins smp
+//         .plugin("luckperms")
+//         .install();                               // the proxy, lobby and smp
+//
+// Modern and BungeeGuard forwarding are signed with a secret: forwarding.secret in the proxy's folder,
+// made at its first start, unless forwardingSecretFile() names one (as sops-nix or agenix give). The
+// servers behind the proxy read it each time they start, so it is never in the Nix store; Paper keeps
+// it in its config/paper-global.yml, so their folders are the user minecraft's alone.
+class Proxy extends(Service<Proxy>) {
+    private<Server> Forwarding forwardingMode = Forwarding.MODERN;
+    string secretFile = "";                  // empty for forwarding.secret in its folder
+    List<string> serverNames = new List();
+    List<string> serverAddresses = new List();   // empty for one given as a Server, at 127.0.0.1
+    List<Server> behind = new List();        // the servers given as Servers
+    List<string> tryNames = new List();
+    List<string> hostNames = new List();
+    List<string> hostServers = new List();
+
+    // A proxy, by its name: letters, digits, - and _. Its service is minecraft-<name>, and its folder
+    // /var/lib/minecraft/<name>.
+    public new(string name) {
+        super(name);
+        self = this;
+    }
+
+    // Its forwarding: MODERN unless given.
+    public Proxy forwarding(Forwarding mode) {
+        forwardingMode = mode;
+        return this;
+    }
+
+    // Its forwarding secret: a file it and its servers can read, as the user minecraft, such as
+    // "/run/secrets/velocity". Unless given, forwarding.secret in the proxy's folder, made at its
+    // first start.
+    public Proxy forwardingSecretFile(string path) {
+        secretFile = path;
+        return this;
+    }
+
+    // A server it forwards to, by its address, "host:port": one set up by hand to take its forwarding.
+    public Proxy server(string name, string address) {
+        serverNames.add(name);
+        serverAddresses.add(address);
+        return this;
+    }
+
+    // A server it forwards to, configured here: it is set up behind the proxy, and the proxy's
+    // install() installs it.
+    public Proxy server(Server other) {
+        if (other.proxy != null && other.proxy != this) {
+            throw new IllegalStateException("Minecraft server " + name + ": " + other.name + " is behind the proxy "
+                + other.proxy.name + " already: a server is behind one proxy");
+        }
+        serverNames.add(other.name);
+        serverAddresses.add("");
+        behind.add(other);
+        other.proxy = this;
+        return this;
+    }
+
+    // Velocity's try list: where a player joins, the first of these that is up, and where one goes
+    // when a server stops under them. Unless given, every server, in the order given.
+    public Proxy tryServer(string name) {
+        tryNames.add(name);
+        return this;
+    }
+
+    // A forced host: who connects by this hostname joins this server, not the try list's. Given again
+    // for the same hostname, the next to try.
+    public Proxy forcedHost(string hostname, string server) {
+        hostNames.add(hostname);
+        hostServers.add(server);
+        return this;
+    }
+
+    // The service, its user, and the port, and the servers behind it.
+    public void install() {
+        super.install();
+        for (Server b : behind) { b.installService(); }
+    }
+
+    private<Service> string loaderId() { return "velocity"; }
+    private<Service> string versionShown() { return loaderRelease; }
+    private<Service> int defaultPort() { return 25577; }
+    private<Service> string extraTools() { return " " + Packages.unzip; }    // takes its default velocity.toml
+    private<Service> string forwardingName() { return forwardingMode.name(); }
+    private<Service> bit ownsSecret() { return secretFile.length() == 0; }
+
+    // The forwarding secret's file, its own or the one given.
+    private<Service, Server> string secretPath() {
+        return secretFile.length() > 0 ? secretFile : "/var/lib/minecraft/" + name + "/forwarding.secret";
+    }
+
+    // The address of server k: the one given, or, for a Server, 127.0.0.1 and its port.
+    string addressOf(int k) {
+        string a = serverAddresses.get(k);
+        if (a.length() > 0) { return a; }
+        for (Server b : behind) {
+            if (b.name == serverNames.get(k)) { return "127.0.0.1:" + b.listenPort(); }
+        }
+        return a;
+    }
+
+    private<Service> void checkKind(string about) {
+        if (secretFile.length() > 0 && (!secretFile.startsWith("/") || !plain(secretFile, "/._-+@"))) {
+            throw new IllegalArgumentException(about + "the forwarding secret file is a path, as \"/run/secrets/velocity\", "
+                + "not \"" + secretFile + "\"");
+        }
+        for (int k = 0; k < serverNames.size(); k++) {
+            string s = serverNames.get(k);
+            string address = addressOf(k);
+            if (s.length() == 0 || !plain(s, "-_") || s == "try") {
+                throw new IllegalArgumentException(about + "no server name \"" + s + "\": a name is letters, digits, - and _, "
+                    + "and not try");
+            }
+            if (serverNames.indexOf(s) != k) {
+                throw new IllegalArgumentException(about + "two servers are named " + s);
+            }
+            if (address.length() == 0 || !plain(address, ".-_:[]")) {
+                throw new IllegalArgumentException(about + "no address \"" + address + "\" for the server " + s
+                    + ": an address is host:port, as \"10.0.0.5:25565\"");
+            }
+        }
+        for (string t : tryNames) {
+            if (!serverNames.contains(t)) {
+                throw new IllegalArgumentException(about + "tryServer(\"" + t + "\") names no server; server() gives them");
+            }
+        }
+        for (int k = 0; k < hostNames.size(); k++) {
+            string host = hostNames.get(k);
+            if (host.length() == 0 || !plain(host, ".-_")) {
+                throw new IllegalArgumentException(about + "no hostname \"" + host + "\" for a forced host");
+            }
+            if (!serverNames.contains(hostServers.get(k))) {
+                throw new IllegalArgumentException(about + "forcedHost(\"" + host + "\", \"" + hostServers.get(k)
+                    + "\") names no server; server() gives them");
+            }
+        }
+        for (int k = 0; k < behind.size(); k++) {
+            Server b = behind.get(k);
+            string them = about + b.name;
+            b.check();
+            if (b.name == name) {
+                throw new IllegalArgumentException(them + " has the proxy's own name");
+            }
+            if (installed.contains(b.name)) {
+                throw new IllegalStateException(them + " is installed on its own already: the proxy's install() installs "
+                    + "it, so leave out its own");
+            }
+            if (b.listenPort() == listenPort()) {
+                throw new IllegalArgumentException(them + " and the proxy both have port " + listenPort() + "; give one another");
+            }
+            for (int j = 0; j < k; j++) {
+                if (behind.get(j).listenPort() == b.listenPort()) {
+                    throw new IllegalArgumentException(them + " and " + behind.get(j).name + " both have port " + b.listenPort()
+                        + "; give one another");
+                }
+            }
+            b.checkBehind(this);
+        }
+    }
+
+    // velocity.toml's [servers] and [forced-hosts]; empty when no server is given, so that
+    // velocity.toml keeps its own.
+    private<Service> string serversToml() {
+        if (serverNames.isEmpty()) { return ""; }
+        StringBuilder b = new StringBuilder();
+        b.append("[servers]\n");
+        for (int k = 0; k < serverNames.size(); k++) {
+            b.append(serverNames.get(k)).append(" = \"").append(addressOf(k)).append("\"\n");
+        }
+        b.append("try = [").append(toml(tryNames.isEmpty() ? serverNames : tryNames)).append("]\n");
+        b.append("\n[forced-hosts]\n");
+        List<string> hosts = new List();
+        for (string h : hostNames) {
+            if (!hosts.contains(h)) { hosts.add(h); }
+        }
+        for (string h : hosts) {
+            List<string> to = new List();
+            for (int k = 0; k < hostNames.size(); k++) {
+                if (hostNames.get(k) == h) { to.add(hostServers.get(k)); }
+            }
+            b.append('"').append(h).append("\" = [").append(toml(to)).append("]\n");
+        }
+        return b.toString();
+    }
+
+    // A TOML list of strings, without its brackets: "lobby", "smp".
+    static string toml(List<string> list) {
+        StringBuilder b = new StringBuilder();
+        for (string s : list) {
+            if (b.length() > 0) { b.append(", "); }
+            b.append('"').append(s).append('"');
+        }
+        return b.toString();
+    }
+}

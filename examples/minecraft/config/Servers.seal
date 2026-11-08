@@ -27,8 +27,7 @@ class Servers {
             .property("difficulty", "hard")
             .property("view-distance", "12");
 
-        new Server("proxy")
-            .loader(Loader.VELOCITY)
+        new Proxy("proxy")
             .port(25565)
             .memory("1G")
             .server(lobby)                                       // joined first

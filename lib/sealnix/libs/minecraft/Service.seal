@@ -1,0 +1,702 @@
+package sealnix.libs.minecraft;
+
+import sealnix.*;
+import seal.util.List;
+
+// What a Server and a Proxy have in common: a systemd service, minecraft-<name>, that downloads its
+// loader and its plugins when it starts, and the settings of that. T is the Server or Proxy, which
+// the settings return, so that they chain with its own. It isn't made by itself: new Server(name) or
+// new Proxy(name).
+abstract class Service<T> {
+    // The names of the services installed: each is a service and a folder of its own.
+    private<Server, Proxy> static List<string> installed = new List();
+
+    // A mod or plugin from Modrinth: its project, by slug or ID, and its version, by version number or
+    // version ID, empty for the newest.
+    public record Project(string name, string version) {
+        // As the start reads it: slug, or slug@version.
+        string spec() { return version.length() == 0 ? name : name + "@" + version; }
+    }
+
+    // The settings, which the methods of their names give: each field is named apart from its method,
+    // which Seal asks.
+    private<Server, Proxy> string name;
+    private<Server, Proxy> T self;           // this, as what the settings return
+    private<Server, Proxy> string loaderRelease = "";    // the loader's own version; empty for the newest
+    int portNumber = 0;
+    bit portGiven = false;                   // else the service's own
+    string heap = "2G";
+    List<string> jvmArgs = new List();
+    bit firewall = true;
+    bit updates = false;
+    private<Server, Proxy> List<Project> plugins = new List();
+    List<ConfigFile> configs = new List();
+    Pkg customJdk = null;                    // null for the one the service needs
+
+    private<Server, Proxy> new(string name) {
+        this.name = name;
+    }
+
+    // Fabric's loader, Forge's or NeoForge's version, Paper's build, Velocity's version; the newest
+    // unless given (Forge's recommended, if it has one).
+    public T loaderVersion(string version) {
+        loaderRelease = version;
+        return self;
+    }
+
+    // 25565 unless given; a proxy's, 25577.
+    public T port(int port) {
+        portNumber = port;
+        portGiven = true;
+        return self;
+    }
+
+    // The Java heap, -Xms and -Xmx: "4G", "512M"; 2G unless given.
+    public T memory(string size) {
+        heap = size;
+        return self;
+    }
+
+    // An argument for java, before the server's own: jvmArg("-XX:+UseZGC").
+    public T jvmArg(string arg) {
+        jvmArgs.add(arg);
+        return self;
+    }
+
+    // The port, in networking.firewall.allowedTCPPorts unless openFirewall(false). A server behind a
+    // proxy, which only the proxy reaches, never is.
+    public T openFirewall(bit open) {
+        firewall = open;
+        return self;
+    }
+
+    // The newest loader, mods and plugins at every start, not only the first.
+    public T autoUpdate() {
+        updates = true;
+        return self;
+    }
+
+    // Paper, Velocity: a plugin, a Modrinth project by its slug or ID, in its newest version for the
+    // loader and Minecraft version.
+    public T plugin(string project) {
+        return plugin(project, "");
+    }
+
+    // That version of it: its version number as Modrinth has it, whole ("v5.5.71-bukkit"), or its
+    // version ID.
+    public T plugin(string project, string version) {
+        plugins.add(new Project(project, version));
+        return self;
+    }
+
+    // A config file of a mod or plugin, or any other file in the server's folder: see ConfigFile.
+    public T config(ConfigFile file) {
+        configs.add(file);
+        return self;
+    }
+
+    // The Java to run; the one the service needs unless given.
+    public T jdk(Pkg jdk) {
+        customJdk = jdk;
+        return self;
+    }
+
+    // The service, its user, and the port. The settings are checked first.
+    public void install() {
+        check();
+        installService();
+    }
+
+    // What differs between a Server and a Proxy, which they say.
+    private<Server, Proxy> string loaderId() { return ""; }          // the start's LOADER
+    private<Server, Proxy> string mcVersion() { return "latest"; }   // the start's MC
+    private<Server, Proxy> string versionShown() { return ""; }      // in the service's description
+    private<Server, Proxy> int defaultPort() { return 25565; }
+    private<Server, Proxy> Pkg defaultJava() { return Packages.jdk25_headless; }
+    private<Server, Proxy> string extraTools() { return ""; }
+    private<Server, Proxy> Proxy front() { return null; }            // the proxy this is behind
+    private<Server, Proxy> void checkKind(string about) { }
+    private<Server, Proxy> bit eulaAccepted() { return false; }
+    private<Server, Proxy> List<string> modSpecs() { return new List(); }
+    private<Server, Proxy> List<string> propertyLines() { return new List(); }
+    private<Server, Proxy> string behindMode() { return ""; }        // the forwarding of the proxy this is behind
+    private<Server, Proxy> string forwardingName() { return ""; }    // a proxy's own
+    private<Server, Proxy> string secretPath() { return ""; }        // the forwarding secret's file
+    private<Server, Proxy> bit ownsSecret() { return false; }
+    private<Server, Proxy> string serversToml() { return ""; }
+    private<Server, Proxy> string secretVariable() { return ""; }    // where the server finds the secret
+
+    // The port it listens on: the one given, or its own.
+    private<Server, Proxy> int listenPort() {
+        return portGiven ? portNumber : defaultPort();
+    }
+
+    private<Server, Proxy> void installService() {
+        if (installed.contains(name)) {
+            throw new IllegalStateException("Minecraft server " + name + " is installed twice: install each server "
+                + "once, each with a name of its own");
+        }
+        installed.add(name);
+        string unit = "minecraft-" + name;
+        Proxy before = front();
+
+        Config.users.users.minecraft.isSystemUser = true;
+        Config.users.users.minecraft.group = "minecraft";
+        Config.users.users.minecraft.home = "/var/lib/minecraft";
+        Config.users.groups.get("minecraft");
+
+        Config.systemd.services.get(unit).description = "Minecraft server " + name + " (" + describe() + ")"
+            + (before != null ? ", behind " + before.name : "");
+        Config.systemd.services.get(unit).wantedBy.add("multi-user.target");
+        Config.systemd.services.get(unit).after.add("network-online.target");
+        Config.systemd.services.get(unit).wants.add("network-online.target");
+        if (before != null) {
+            // the proxy first, which makes the forwarding secret this reads
+            Config.systemd.services.get(unit).after.add("minecraft-" + before.name + ".service");
+            Config.systemd.services.get(unit).wants.add("minecraft-" + before.name + ".service");
+        }
+        Config.systemd.services.get(unit).preStart = prepareScript();
+        Config.systemd.services.get(unit).script = startScript();
+        Config.systemd.services.get(unit).serviceConfig.set("User", "minecraft");
+        Config.systemd.services.get(unit).serviceConfig.set("Group", "minecraft");
+        Config.systemd.services.get(unit).serviceConfig.set("StateDirectory", "minecraft/" + name);
+        if (before != null) {
+            // the proxy's secret, which Paper writes into its config, is no one else's to read
+            Config.systemd.services.get(unit).serviceConfig.set("StateDirectoryMode", "0750");
+        }
+        Config.systemd.services.get(unit).serviceConfig.set("WorkingDirectory", "/var/lib/minecraft/" + name);
+        Config.systemd.services.get(unit).serviceConfig.set("Restart", "on-failure");
+        Config.systemd.services.get(unit).serviceConfig.set("RestartSec", 10);
+        Config.systemd.services.get(unit).serviceConfig.set("TimeoutStartSec", "20min");       // the first start downloads, and installs Forge
+        Config.systemd.services.get(unit).serviceConfig.set("TimeoutStopSec", 120);            // time to save the worlds
+        Config.systemd.services.get(unit).serviceConfig.set("SuccessExitStatus", "0 143");     // 143: stopped by SIGTERM, having saved
+        Config.systemd.services.get(unit).serviceConfig.set("PrivateTmp", true);
+        Config.systemd.services.get(unit).serviceConfig.set("NoNewPrivileges", true);
+        Config.systemd.services.get(unit).serviceConfig.set("ProtectSystem", "strict");
+        Config.systemd.services.get(unit).serviceConfig.set("ProtectHome", true);
+        Config.setRaw("systemd.services." + unit + ".path", "[ " + tools() + " ]");
+
+        if (firewall && before == null) { Config.networking.firewall.allowedTCPPorts.add(listenPort()); }
+    }
+
+    private<Server, Proxy> void check() {
+        string about = "Minecraft server " + name + ": ";
+        if (!plain(name, "-_") || name.length() == 0) {
+            throw new IllegalArgumentException("Minecraft server \"" + name + "\": a name is letters, digits, - and _");
+        }
+        checkKind(about);
+        if (!plain(loaderRelease, ".-_+")) {
+            throw new IllegalArgumentException(about + "no loader version \"" + loaderRelease + "\"");
+        }
+        if (!plain(heap, "") || heap.length() == 0) {
+            throw new IllegalArgumentException(about + "memory is a size, as \"4G\" or \"512M\"");
+        }
+        if (portGiven && (portNumber < 1 || portNumber > 65535)) {
+            throw new IllegalArgumentException(about + "no port " + portNumber);
+        }
+        for (Project p : plugins) { checkProject(p, "plugin"); }
+        for (int k = 0; k < configs.size(); k++) {
+            configs.get(k).check(about);
+            for (int j = 0; j < k; j++) {
+                if (configs.get(j).filePath() == configs.get(k).filePath()) {
+                    throw new IllegalArgumentException(about + "two config files are \"" + configs.get(k).filePath()
+                        + "\"; give all its settings to one");
+                }
+            }
+        }
+    }
+
+    private<Server, Proxy> void checkProject(Project p, string kind) {
+        string about = "Minecraft server " + name + ": ";
+        int at = p.name.indexOf('@');
+        if (at > 0) {
+            throw new IllegalArgumentException(about + "no Modrinth project \"" + p.name + "\": a version is "
+                + kind + "'s second argument, " + kind + "(\"" + p.name.substring(0, at) + "\", \""
+                + p.name.substring(at + 1, p.name.length()) + "\")");
+        }
+        if (p.name.length() == 0 || !plain(p.name, ".-_+")) {
+            throw new IllegalArgumentException(about + "no Modrinth project \"" + p.name + "\"");
+        }
+        if (p.version.contains("\t") || p.version.contains("\n")) {
+            throw new IllegalArgumentException(about + "no version \"" + p.version + "\" of " + p.name);
+        }
+    }
+
+    private<Server, Proxy> string describe() {
+        string version = versionShown();
+        return loaderId() + (version.length() > 0 ? " " + version : "");
+    }
+
+    Pkg java() {
+        return customJdk != null ? customJdk : defaultJava();
+    }
+
+    // What preStart runs with. yq edits config files, on every server, since a start may have to take
+    // settings out of one the configuration no longer has; Python reads the JSON5 of files whose keys
+    // are set.
+    string tools() {
+        string more = extraTools();
+        for (ConfigFile c : configs) {
+            if (c.editsJson5()) {
+                more = more + " (pkgs.python3.withPackages (ps: [ ps.json5 ]))";
+                break;
+            }
+        }
+        return "" + Packages.curl + " " + Packages.jq + " " + Packages.coreutils + " " + Packages.gawk + " "
+            + Packages.gnugrep + " " + Packages.yq_go + " " + java() + more;
+    }
+
+    // The config files, as JSON for the start.
+    string configsJson() {
+        StringBuilder b = new StringBuilder();
+        for (ConfigFile c : configs) {
+            b.append(b.length() > 0 ? "," : "").append(c.spec());
+        }
+        return "[" + b.toString() + "]";
+    }
+
+    string prepareScript() {
+        StringBuilder b = new StringBuilder();
+        b.append("set -euo pipefail\n");
+        b.append("LOADER=").append(loaderId()).append('\n');
+        b.append("MC=").append(sh(mcVersion())).append('\n');
+        b.append("LOADER_VERSION=").append(sh(loaderRelease)).append('\n');
+        b.append("PORT=").append(listenPort()).append('\n');
+        b.append("AUTO_UPDATE=").append(updates ? "1" : "0").append('\n');
+        b.append("EULA=").append(eulaAccepted() ? "1" : "0").append('\n');
+        b.append("MODS=(").append(words(modSpecs())).append(")\n");
+        b.append("PLUGINS=(").append(words(specs(plugins))).append(")\n");
+        b.append("PROPERTIES=(").append(words(propertyLines())).append(")\n");
+        b.append("BEHIND=").append(behindMode()).append('\n');
+        b.append("FORWARDING=").append(forwardingName()).append('\n');
+        b.append("SECRET=").append(sh(secretPath())).append('\n');
+        b.append("OWN_SECRET=").append(ownsSecret() ? "1" : "0").append('\n');
+        b.append("SERVERS=").append(sh(serversToml())).append('\n');
+        b.append("CONFIGS=").append(sh(configsJson())).append('\n');
+        b.append(PREPARE);
+        return b.toString();
+    }
+
+    string startScript() {
+        StringBuilder b = new StringBuilder();
+        b.append("set -euo pipefail\n");
+        b.append("mapfile -t launch < .seal-mc/launch\n");
+        string variable = secretVariable();
+        if (variable.length() > 0) {
+            // the proxy's secret, which the server takes from its environment, so no file of its own holds it
+            b.append("SECRET=").append(sh(secretPath())).append('\n');
+            b.append("if ! secret=$(cat -- \"$SECRET\") || [ -z \"$secret\" ]; then\n");
+            b.append("  echo \"minecraft: no forwarding secret to read in $SECRET, which minecraft-")
+                .append(front().name).append(" signs with\" >&2\n");
+            b.append("  exit 1\n");
+            b.append("fi\n");
+            b.append("export ").append(variable).append("=$secret\n");
+        }
+        b.append("exec java -Xms").append(heap).append(" -Xmx").append(heap);
+        for (string a : jvmArgs) { b.append(' ').append(sh(a)); }
+        b.append(" \"${launch[@]}\"\n");
+        return b.toString();
+    }
+
+    private<Server, Proxy> static List<string> specs(List<Project> projects) {
+        List<string> list = new List();
+        for (Project p : projects) { list.add(p.spec()); }
+        return list;
+    }
+
+    // Letters, digits, and the characters given.
+    private<Server, Proxy> static bit plain(string s, string allowed) {
+        for (int k = 0; k < s.length(); k++) {
+            char c = s.charAt(k);
+            bit ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+            for (int j = 0; j < allowed.length(); j++) {
+                if (c == allowed.charAt(j)) { ok = true; }
+            }
+            if (!ok) { return false; }
+        }
+        return true;
+    }
+
+    // A word for the shell, in single quotes.
+    private<Server, Proxy> static string sh(string s) {
+        StringBuilder b = new StringBuilder();
+        b.append('\'');
+        for (int k = 0; k < s.length(); k++) {
+            char c = s.charAt(k);
+            if (c == '\'') {
+                b.append("'\"'\"'");
+            } else {
+                b.append(c);
+            }
+        }
+        b.append('\'');
+        return b.toString();
+    }
+
+    private<Server, Proxy> static string words(List<string> list) {
+        StringBuilder b = new StringBuilder();
+        for (string s : list) {
+            if (b.length() > 0) { b.append(' '); }
+            b.append(sh(s));
+        }
+        return b.toString();
+    }
+
+    // What preStart runs, after the server's own settings (LOADER, MC, MODS...): bash, with curl and jq.
+    static string PREPARE = """
+        UA='seal-nix-libs minecraft (github.com/TheLinuxSeal/seal-nix-libs)'
+        MOJANG=https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+        mkdir -p .seal-mc
+
+        log() { echo "minecraft: $*" >&2; }
+        fail() { log "$*"; exit 1; }
+        get() { curl -fsSL --retry 3 --retry-delay 2 -A "$UA" "$@"; }
+
+        # fetch URL FILE ALGORITHM CHECKSUM: the file, checked, put in place only when it is whole
+        fetch() {
+          get -o "$2.part" "$1" || fail "can't download $1"
+          if [ -n "$4" ] && [ "$("$3sum" "$2.part" | cut -d ' ' -f 1)" != "$4" ]; then
+            rm -f "$2.part"
+            fail "$1: the download's $3 isn't $4"
+          fi
+          mv -f "$2.part" "$2"
+        }
+
+        # A Maven artifact's sha1, when the repository has one.
+        mavensha1() { get "$1.sha1" 2>/dev/null | cut -d ' ' -f 1 || true; }
+
+        # The loader: again only when the configuration asks for another, or for the newest each time.
+        want="$LOADER $MC $LOADER_VERSION"
+        if [ "$AUTO_UPDATE" = 1 ] || [ "$(cat .seal-mc/requested 2>/dev/null)" != "$want" ] || [ ! -s .seal-mc/launch ]; then
+          if [ "$MC" = latest ] && [ "$LOADER" != velocity ]; then
+            if [ "$LOADER" = paper ]; then
+              MC=$(get https://fill.papermc.io/v3/projects/paper | jq -r '[.versions[][] | select(test("-") | not)][0]')
+            else
+              MC=$(get "$MOJANG" | jq -r .latest.release)
+            fi
+          fi
+          case "$LOADER" in
+          vanilla)
+            url=$(get "$MOJANG" | jq -r --arg v "$MC" '.versions[] | select(.id == $v) | .url')
+            [ -n "$url" ] || fail "Minecraft has no version $MC"
+            server=$(get "$url" | jq -c .downloads.server)
+            log "Minecraft $MC"
+            fetch "$(jq -r .url <<<"$server")" server.jar sha1 "$(jq -r .sha1 <<<"$server")"
+            launch=(-jar server.jar nogui)
+            ;;
+          fabric)
+            lv=$LOADER_VERSION
+            if [ -z "$lv" ]; then
+              lv=$(get "https://meta.fabricmc.net/v2/versions/loader/$MC" | jq -r '[.[] | select(.loader.stable)][0].loader.version // empty')
+            fi
+            [ -n "$lv" ] || fail "Fabric has no loader for Minecraft $MC"
+            iv=$(get https://meta.fabricmc.net/v2/versions/installer | jq -r '[.[] | select(.stable)][0].version')
+            log "Fabric $lv for Minecraft $MC"
+            fetch "https://meta.fabricmc.net/v2/versions/loader/$MC/$lv/$iv/server/jar" fabric-server.jar sha1 ""
+            launch=(-jar fabric-server.jar nogui)
+            ;;
+          forge)
+            fv=$LOADER_VERSION
+            if [ -z "$fv" ]; then
+              fv=$(get https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json \
+                | jq -r --arg r "$MC-recommended" --arg l "$MC-latest" '.promos[$r] // .promos[$l] // empty')
+            fi
+            [ -n "$fv" ] || fail "Forge has no version for Minecraft $MC"
+            url="https://maven.minecraftforge.net/net/minecraftforge/forge/$MC-$fv/forge-$MC-$fv-installer.jar"
+            log "Forge $fv for Minecraft $MC: installing"
+            fetch "$url" .seal-mc/installer.jar sha1 "$(mavensha1 "$url")"
+            java -jar .seal-mc/installer.jar --installServer > .seal-mc/installer.log 2>&1 \
+              || fail "Forge's installer failed; .seal-mc/installer.log says why"
+            rm -f .seal-mc/installer.jar
+            args="libraries/net/minecraftforge/forge/$MC-$fv/unix_args.txt"
+            if [ -f "$args" ]; then
+              launch=("@$args" nogui)
+            else
+              launch=(-jar "$(ls forge-"$MC-$fv"*.jar | grep -v installer | head -n 1)" nogui)
+            fi
+            ;;
+          neoforge)
+            nv=$LOADER_VERSION
+            if [ -z "$nv" ]; then
+              case "$MC" in
+                1.*.*) prefix="${MC#1.}." ;;
+                1.*) prefix="${MC#1.}.0." ;;
+                *.*.*) prefix="$MC." ;;
+                *) prefix="$MC.0." ;;
+              esac
+              nv=$(get https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge \
+                | jq -r --arg p "$prefix" '[.versions[] | select(startswith($p))] | (map(select(test("alpha|beta") | not)) | last) // last // empty')
+            fi
+            [ -n "$nv" ] || fail "NeoForge has no version for Minecraft $MC"
+            url="https://maven.neoforged.net/releases/net/neoforged/neoforge/$nv/neoforge-$nv-installer.jar"
+            log "NeoForge $nv for Minecraft $MC: installing"
+            fetch "$url" .seal-mc/installer.jar sha1 "$(mavensha1 "$url")"
+            java -jar .seal-mc/installer.jar --installServer > .seal-mc/installer.log 2>&1 \
+              || fail "NeoForge's installer failed; .seal-mc/installer.log says why"
+            rm -f .seal-mc/installer.jar
+            launch=("@libraries/net/neoforged/neoforge/$nv/unix_args.txt" nogui)
+            ;;
+          paper | velocity)
+            v=$MC
+            build=${LOADER_VERSION:-latest}
+            if [ "$LOADER" = velocity ]; then
+              v=${LOADER_VERSION:-latest}
+              build=latest
+              if [ "$v" = latest ]; then
+                v=$(get https://fill.papermc.io/v3/projects/velocity | jq -r '[.versions[][] | select(test("SNAPSHOT") | not)][0]')
+              fi
+            fi
+            d=$(get "https://fill.papermc.io/v3/projects/$LOADER/versions/$v/builds/$build" | jq -c '.downloads["server:default"]') \
+              || fail "PaperMC has no $LOADER $v, build $build"
+            log "$(jq -r .name <<<"$d")"
+            fetch "$(jq -r .url <<<"$d")" "$LOADER.jar" sha256 "$(jq -r .checksums.sha256 <<<"$d")"
+            launch=(-jar "$LOADER.jar")
+            if [ "$LOADER" = paper ]; then launch+=(nogui); fi
+            ;;
+          esac
+          printf '%s\\n' "${launch[@]}" > .seal-mc/launch
+          echo "$MC" > .seal-mc/minecraft
+          echo "$want" > .seal-mc/requested
+        fi
+        MC=$(cat .seal-mc/minecraft)
+
+        # sync DIR LOADERS GAMES SPEC...: the Modrinth projects named, in DIR. A file this put there
+        # before, which no project names now, goes; LOADERS and GAMES are JSON lists, or GAMES null.
+        # The files chosen are kept, unless autoUpdate, or the loader or Minecraft version they were
+        # chosen for has changed: then every project is chosen again.
+        sync() {
+          local dir=$1 loaders=$2 games=$3
+          shift 3
+          mkdir -p "$dir"
+          local lock=".seal-mc/$dir.lock" next=".seal-mc/$dir.lock.next" made=".seal-mc/$dir.for"
+          touch "$lock"
+          : > "$next"
+          local again=$AUTO_UPDATE
+          if [ "$(cat "$made" 2>/dev/null)" != "$LOADER $MC" ]; then again=1; fi
+          local spec slug pin old query versions v file name
+          for spec in "$@"; do
+            slug=${spec%%@*}
+            pin=
+            if [ "$spec" != "$slug" ]; then pin=${spec#*@}; fi
+            old=$(awk -F '\\t' -v s="$spec" '$1 == s { print $2 }' "$lock")
+            if [ "$again" != 1 ] && [ -n "$old" ] && [ -f "$dir/$old" ]; then
+              printf '%s\\t%s\\n' "$spec" "$old" >> "$next"
+              continue
+            fi
+            query="loaders=$(jq -rn --argjson v "$loaders" '$v | tojson | @uri')"
+            if [ "$games" != null ]; then query="$query&game_versions=$(jq -rn --argjson v "$games" '$v | tojson | @uri')"; fi
+            versions=$(get "https://api.modrinth.com/v2/project/$slug/version?$query") || fail "Modrinth has no project $slug"
+            v=$(jq -c --arg pin "$pin" '(if $pin != "" then map(select(.version_number == $pin or .id == $pin))
+              else map(select(.version_type == "release")) + . end) | .[0] // empty' <<<"$versions")
+            [ -n "$v" ] || fail "$slug has no version${pin:+ $pin} for $LOADER $MC on Modrinth"
+            file=$(jq -c '(.files | map(select(.primary))) + .files | .[0]' <<<"$v")
+            name=$(jq -r .filename <<<"$file")
+            if [ ! -f "$dir/$name" ]; then
+              log "$dir: $slug $(jq -r .version_number <<<"$v")"
+              fetch "$(jq -r .url <<<"$file")" "$dir/$name" sha512 "$(jq -r .hashes.sha512 <<<"$file")"
+            fi
+            if [ -n "$old" ] && [ "$old" != "$name" ]; then rm -f "$dir/$old"; fi
+            printf '%s\\t%s\\n' "$spec" "$name" >> "$next"
+          done
+          while IFS=$'\\t' read -r spec old; do
+            if ! awk -F '\\t' -v f="$old" '$2 == f { found = 1 } END { exit !found }' "$next"; then
+              rm -f "$dir/$old"
+              log "$dir: removed $old"
+            fi
+          done < "$lock"
+          mv -f "$next" "$lock"
+          echo "$LOADER $MC" > "$made"
+        }
+
+        games=$(jq -cn --arg v "$MC" '[$v]')
+        case "$LOADER" in
+          fabric | forge | neoforge) sync mods "$(jq -cn --arg l "$LOADER" '[$l]')" "$games" "${MODS[@]}" ;;
+          paper) sync plugins '["paper","spigot","bukkit"]' "$games" "${PLUGINS[@]}" ;;
+          velocity) sync plugins '["velocity"]' null "${PLUGINS[@]}" ;;
+        esac
+
+        # The port, and what else the configuration sets. For Velocity, velocity.toml: its bind, its
+        # forwarding, and, when the configuration names servers, its [servers] and [forced-hosts].
+        if [ "$LOADER" = velocity ]; then
+          if [ "$OWN_SECRET" = 1 ] && [ ! -s "$SECRET" ]; then
+            secret=$(head -c 32 /dev/urandom | sha256sum | cut -d ' ' -f 1)
+            (umask 077 && printf '%s' "$secret" > "$SECRET.part")
+            mv -f "$SECRET.part" "$SECRET"
+            log "a new forwarding secret, in $SECRET"
+          fi
+          case "$FORWARDING" in
+            MODERN | BUNGEEGUARD)
+              [ -r "$SECRET" ] && [ -s "$SECRET" ] || fail "$FORWARDING forwarding is signed with a secret, and $SECRET holds none" ;;
+          esac
+          # A new velocity.toml is Velocity's own, with its config-version: without one, Velocity takes the
+          # file for an old one, and puts forwarding-secret-file back to forwarding.secret.
+          if [ ! -s velocity.toml ]; then
+            unzip -p velocity.jar default-velocity.toml > velocity.toml.next 2>/dev/null || true
+            [ -s velocity.toml.next ] || echo 'config-version = "2.0"' > velocity.toml.next
+            mv -f velocity.toml.next velocity.toml
+          fi
+          TOP=$(printf '%s\\n' "bind = '0.0.0.0:$PORT'" "player-info-forwarding-mode = '$FORWARDING'" \
+            "forwarding-secret-file = '$SECRET'")
+          # TOP's keys, each in place of the one there, or else before the first table; TABLES, when there
+          # are any, in place of [servers] and [forced-hosts], keeping the comments of the table after them.
+          TOP=$TOP TABLES=$SERVERS awk '
+            BEGIN {
+              n = split(ENVIRON["TOP"], top, "\\n")
+              for (i = 1; i <= n; i++) { k = top[i]; sub(/[[:blank:]]*=.*/, "", k); want[k] = i }
+              tables = ENVIRON["TABLES"]
+            }
+            function rest(  i) { for (i = 1; i <= n; i++) if (!(i in done)) print top[i]; intables = 1 }
+            /^[[:blank:]]*[[][^]]*[]][[:blank:]]*(#.*)?$/ {
+              if (!intables) rest()
+              name = $0; sub(/^[[:blank:]]*[[][[:blank:]]*"?/, "", name); sub(/"?[[:blank:]]*[]].*/, "", name)
+              if (tables != "" && (name == "servers" || name == "forced-hosts")) {
+                if (!put) { printf "%s", tables; put = 1 }
+                skip = 1; held = ""; next
+              }
+              if (skip) { printf "%s", held; skip = 0 }
+              print; next
+            }
+            skip {
+              if ($0 ~ /^[[:blank:]]*(#.*)?$/) held = held $0 "\\n"; else held = ""
+              next
+            }
+            !intables && /^[[:blank:]]*[A-Za-z0-9_-]+[[:blank:]]*=/ {
+              k = $0; sub(/^[[:blank:]]*/, "", k); sub(/[[:blank:]]*=.*/, "", k)
+              if (k in want) { if (!(want[k] in done)) print top[want[k]]; done[want[k]] = 1; next }
+            }
+            { print }
+            END {
+              if (!intables) rest()
+              if (skip) printf "%s", held
+              if (tables != "" && !put) { print ""; printf "%s", tables }
+            }' velocity.toml > velocity.toml.next
+          mv -f velocity.toml.next velocity.toml
+        else
+          if [ "$EULA" = 1 ]; then echo eula=true > eula.txt; fi
+          # Behind a proxy, the folder is the user minecraft's alone, as StateDirectoryMode makes a new
+          # one: Paper keeps the proxy's secret in config/paper-global.yml.
+          if [ -n "$BEHIND" ]; then chmod 750 .; fi
+          # Out from behind a proxy: online again, on every address.
+          was=$(cat .seal-mc/behind 2>/dev/null || true)
+          if [ -z "$BEHIND" ] && [ -n "$was" ]; then PROPERTIES=(online-mode=true server-ip= "${PROPERTIES[@]}"); fi
+          touch server.properties
+          for kv in "server-port=$PORT" "${PROPERTIES[@]}"; do
+            KV=$kv awk 'BEGIN { kv = ENVIRON["KV"]; k = substr(kv, 1, index(kv, "=")) }
+              index($0, k) == 1 { if (!done) print kv; done = 1; next }
+              { print }
+              END { if (!done) print kv }' server.properties > server.properties.next
+            mv -f server.properties.next server.properties
+          done
+          # Paper takes a proxy's forwarding in config/paper-global.yml (modern, whose secret comes as it
+          # starts, in PAPER_VELOCITY_SECRET) or spigot.yml (legacy), and leaves it when out from behind.
+          if [ "$LOADER" = paper ] && { [ -n "$BEHIND" ] || [ -n "$was" ]; }; then
+            mkdir -p config
+            touch config/paper-global.yml spigot.yml
+            modern=false
+            legacy=false
+            if [ "$BEHIND" = MODERN ]; then modern=true; fi
+            if [ "$BEHIND" = LEGACY ]; then legacy=true; fi
+            MODERN=$modern yq -i '.proxies.velocity.enabled = env(MODERN) | .proxies.velocity["online-mode"] = true
+              | .proxies["bungee-cord"]["online-mode"] = true' config/paper-global.yml
+            LEGACY=$legacy yq -i '.settings.bungeecord = env(LEGACY)' spigot.yml
+          fi
+          echo "$BEHIND" > .seal-mc/behind
+        fi
+
+        # edit FILE FORMAT EXPRESSION: yq's EXPRESSION on a config file, into FILE.next, read as AS. JSON5
+        # is read by Python, and comes out as plain JSON, which is JSON5 too.
+        edit() {
+          local file=$1 format=$2 expression=$3 input=$1
+          AS=$format
+          if [ "$format" = json5 ]; then
+            AS=json
+            input=$file.read
+            if [ ! -s "$file" ]; then
+              echo '{}' > "$input"
+            elif command -v python3 > /dev/null; then
+              python3 -I -c 'import json, json5, sys; json.dump(json5.load(open(sys.argv[1], encoding="utf-8")), sys.stdout)' \
+                "$file" > "$input" || return 1
+            else
+              cp "$file" "$input"
+            fi
+          fi
+          yq -p "$AS" -o "$AS" "$expression" "$input" > "$file.next"
+        }
+
+        # property FILE KEY [VALUE]: KEY's line in a .properties file, in place of the one there, or
+        # added; without a VALUE, no such line.
+        property() {
+          local given=$#
+          KEY=$2 VALUE=${3-} GIVEN=$given awk 'BEGIN { k = ENVIRON["KEY"]; line = k "=" ENVIRON["VALUE"]; put = ENVIRON["GIVEN"] == 3 }
+            function same(t) {
+              sub(/^[[:blank:]]+/, "", t)
+              if (index(t, k) != 1) return 0
+              t = substr(t, length(k) + 1)
+              return t == "" || t ~ /^[[:blank:]=:]/
+            }
+            same($0) { if (put && !done) print line; done = 1; next }
+            { print }
+            END { if (put && !done) print line }' "$1" > "$1.next"
+          mv -f "$1.next" "$1"
+        }
+
+        # The config files: first what an earlier start set, which the configuration no longer does, goes,
+        # a key so that the mod is back to its default, a whole file with its text().
+        printf '%s' "$CONFIGS" > .seal-mc/configs.next
+        if [ -s .seal-mc/configs ]; then
+          while IFS= read -r gone; do
+            file=$(jq -r .path <<<"$gone")
+            if [ "$(jq -r .whole <<<"$gone")" = true ]; then
+              rm -f "$file"
+              log "config: removed $file"
+            elif [ -f "$file" ]; then
+              format=$(jq -r .format <<<"$gone")
+              if [ "$format" = properties ]; then
+                while IFS= read -r key; do property "$file" "$key"; done < <(jq -r '.keys[][0]' <<<"$gone")
+                log "config: $file: took out what is no longer set"
+              elif KEYS=$(jq -c .keys <<<"$gone") edit "$file" "$format" 'delpaths(env(KEYS))'; then
+                mv -f "$file.next" "$file"
+                log "config: $file: took out what is no longer set"
+              else
+                log "config: $file: can't be read, so what is no longer set stays in it"
+              fi
+              rm -f "$file.next" "$file.read"
+            fi
+          done < <(jq -c --slurpfile now .seal-mc/configs.next '.[] | . as $o | ($now[0] | map(select(.path == $o.path)) | .[0]) as $n
+            | if $n == null then (if $o.text != null then {path: $o.path, whole: true} else {path: $o.path, format: $o.format, keys: [$o.set[].key]} end)
+              elif $n.text != null or $o.text != null then empty
+              else {path: $o.path, format: $o.format, keys: ([$o.set[].key] - [$n.set[].key])} | select(.keys != []) end' .seal-mc/configs)
+        fi
+
+        # Then what the configuration gives, last, so that it has the last word on any file.
+        while IFS= read -r config; do
+          file=$(jq -r .path <<<"$config")
+          format=$(jq -r .format <<<"$config")
+          settings=$(jq -c .set <<<"$config")
+          mkdir -p "$(dirname -- "$file")"
+          if [ "$(jq -r '.text != null' <<<"$config")" = true ]; then
+            jq -j .text <<<"$config" > "$file.next"
+            mv -f "$file.next" "$file"
+          elif [ "$format" = properties ]; then
+            touch "$file"
+            while IFS=$'\\t' read -r key value; do
+              property "$file" "$key" "$value"
+            done < <(jq -r '.[] | .key[0] + "\\t" + .value' <<<"$settings")
+          else
+            touch "$file"
+            SET=$settings edit "$file" "$format" 'env(SET)[] as $e ireduce (.; setpath($e.key; $e.value))' \
+              || { rm -f "$file.next" "$file.read"; fail "$file can't be read as $format, so its settings can't be set; text() writes a whole file"; }
+            # A key under what isn't a section isn't set, and yq doesn't say so.
+            missed=$(yq -p "$AS" -o json "$file.next" | jq -r --argjson s "$settings" \
+              '. as $d | $s[] as $e | select((try ($d | getpath($e.key)) catch null) != $e.value) | $e.key | join(".")')
+            if [ -n "$missed" ]; then
+              rm -f "$file.next" "$file.read"
+              fail "$file: can't set $missed, which is under a value that isn't a section"
+            fi
+            mv -f "$file.next" "$file"
+            rm -f "$file.read"
+          fi
+        done < <(jq -c '.[]' <<<"$CONFIGS")
+        mv -f .seal-mc/configs.next .seal-mc/configs
+        """;
+}
