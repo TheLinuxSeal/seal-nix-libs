@@ -47,14 +47,17 @@ takes a few minutes, and writes `.seal-mc/installer.log`.
 ## Mods and plugins
 
 ```java
-.mod("fabric-api")                      // the newest release for this loader and Minecraft version
-.mod("lithium@mc26.3-0.26.3-fabric")    // that version of it, by its version number
+.mod("fabric-api")                          // the newest release for this loader and Minecraft version
+.mod("lithium", "mc26.3-0.26.3-fabric")     // that version of it, by its version number
 .plugin("luckperms")
+.plugin("luckperms", "v5.5.71-bukkit")
 ```
 
 A project is a Modrinth project, by its slug (the name in its address, modrinth.com/mod/**lithium**)
-or its ID. `slug@version` pins one version, by its version number (as Modrinth's Versions tab shows
-it) or its version ID.
+or its ID. A second argument pins one version: its version number, whole, as the project's Versions
+tab on Modrinth shows it (each project writes its own: `mc26.3-0.26.3-fabric`, `0.165.2+26.3`,
+`v2.12.0`), or its version ID. Modrinth keeps no version of the mod apart from that, so `"0.26.3"`
+isn't Lithium's `mc26.3-0.26.3-fabric`.
 
 | Server | Takes | Chosen among Modrinth's versions for |
 | --- | --- | --- |

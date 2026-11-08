@@ -69,8 +69,8 @@ so they chain. `build()` checks them and gives the `Server`; `install()` install
 | `.jdk(package)` | all | the one the version needs | [Memory and Java](servers.md#memory-and-java) |
 | `.acceptEula()` | all but Velocity | not accepted: an error | [server.properties](servers.md#serverproperties-and-the-eula) |
 | `.property(key, value)` | all but Velocity | none | [server.properties](servers.md#serverproperties-and-the-eula) |
-| `.mod(project)` | Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
-| `.plugin(project)` | Paper, Velocity | none | [Mods and plugins](servers.md#mods-and-plugins) |
+| `.mod(project)`, `.mod(project, version)` | Fabric, Forge, NeoForge | none | [Mods and plugins](servers.md#mods-and-plugins) |
+| `.plugin(project)`, `.plugin(project, version)` | Paper, Velocity | none | [Mods and plugins](servers.md#mods-and-plugins) |
 | `.openFirewall(open)` | all | `true` | [Ports](servers.md#ports-and-the-firewall) |
 | `.autoUpdate()` | all | off | [Updates](servers.md#updates) |
 | `.forwarding(mode)` | Velocity | `Forwarding.MODERN` | [Forwarding](proxy.md#forwarding) |

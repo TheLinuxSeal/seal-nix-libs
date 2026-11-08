@@ -9,12 +9,12 @@ class Main {
             .acceptEula()
             .memory("4G")
             .mod("fabric-api")
-            .mod("lithium")
+            .mod("lithium", "mc26.3-0.26.3-fabric")          // a version, by its version number
             .property("motd", "A Seal server")
             .install();
 
         MinecraftServerUtil.Server lobby = MinecraftServerUtil.paper("lobby", "26.3")
-            .acceptEula().port(25566).plugin("luckperms").build();
+            .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit").build();
         MinecraftServerUtil.Server smp = MinecraftServerUtil.fabric("smp", "26.3")
             .acceptEula().port(25567).mod("lithium").build();
 

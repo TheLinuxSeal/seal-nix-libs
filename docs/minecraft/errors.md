@@ -23,7 +23,9 @@ anything changes on the machine. The build's log says, after `uncaught IllegalAr
 | `<loader> takes no mods; Fabric, Forge and NeoForge do` | `.mod()` on vanilla, Paper or Velocity; Paper and Velocity take `.plugin()`. |
 | `<loader> takes no plugins; Paper and Velocity do` | `.plugin()` on vanilla, Fabric, Forge or NeoForge; those take `.mod()`. |
 | `velocity has no server.properties; a proxy's own settings are its velocity.toml's` | `.property()` on a proxy: [velocity.toml](proxy.md#velocitytoml). |
-| `no Modrinth project "<project>"` | A mod or plugin has a character a slug or ID doesn't, or is empty, or starts with `@`. |
+| `no Modrinth project "<project>"` | A mod's or plugin's project has a character other than letters, digits, `.`, `-`, `_` and `+`, or is empty. |
+| `no Modrinth project "lithium@mc26.3-0.26.3-fabric": a version is mod's second argument, mod("lithium", "mc26.3-0.26.3-fabric")` | The old `"project@version"`: the version is an argument of its own now. |
+| `no version "<version>" of <project>` | A mod's or plugin's version has a tab or a new line. |
 | `no property <key>` | A property's key has a character other than letters, digits, `.`, `-` and `_`, or its value a new line. |
 | `<setting>() is a Velocity proxy's, and <loader> is no proxy` | `forwarding()`, `forwardingSecretFile()`, `server()`, `tryServer()` or `forcedHost()` on a server. |
 | `is installed twice: install each server once, each with a name of its own` | `install()` twice, or two servers of one name. |
@@ -76,7 +78,7 @@ reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts wi
 | `PaperMC has no paper <version>, build <build>` | No Paper for that version (yet), or no such build; for a proxy, no such Velocity. | Another version or build. |
 | `Modrinth has no project <slug>` | No project of that slug or ID. | The slug, as in the project's address. |
 | `<slug> has no version for <loader> <version> on Modrinth` | The project has nothing for that loader and Minecraft version. | Another mod, or another version. |
-| `<slug> has no version <pin> for <loader> <version> on Modrinth` | The pinned version isn't one, or isn't for that loader and Minecraft version. | The version number as Modrinth shows it, or no pin. |
+| `<slug> has no version <version> for <loader> <version> on Modrinth` | The version given isn't one of the project's version numbers or IDs, or isn't for that loader and Minecraft version. | The whole version number, as the project's Versions tab on Modrinth shows it. |
 | `MODERN forwarding is signed with a secret, and <path> holds none` | The proxy's `forwardingSecretFile()` is missing, empty, or not the user `minecraft`'s to read. (`BUNGEEGUARD` says so too.) | The file, or its owner. |
 | `no forwarding secret to read in <path>, which minecraft-<proxy> signs with` | A server behind a proxy started before the proxy made its secret, or can't read the one given. | Start the proxy: `systemctl start minecraft-<proxy>`. |
 
@@ -86,7 +88,7 @@ And from the server itself, in the same log:
 | --- | --- |
 | `FAILED TO BIND TO PORT`, `Address already in use` | Another server, or program, has the port: give one of them another. Servers on their own aren't checked for this when the configuration builds. |
 | `OutOfMemoryError` | The heap is too small for the world and mods: a bigger `memory()`. |
-| A mod's crash, after a start that chose again | A new version of a mod (from `autoUpdate()`, or a new Minecraft version) that doesn't work with the others: pin the one that worked. |
+| A mod's crash, after a start that chose again | A new version of a mod (from `autoUpdate()`, or a new Minecraft version) that doesn't work with the others: give the one that worked as its version, `.mod("lithium", "mc26.3-0.26.3-fabric")`. |
 
 A player turned away by a server behind a proxy (FabricProxy-Lite says `This server requires you to
 connect with Velocity.`) has connected to it without the proxy, or the proxy and the server have

@@ -14,7 +14,7 @@ import seal.util.List;
 //         .acceptEula()                             // Mojang's EULA: https://aka.ms/MinecraftEULA
 //         .memory("4G")
 //         .mod("fabric-api")                        // a Modrinth project, by its slug or ID
-//         .mod("lithium@mc26.3-0.18.0")             // one version of it, by version number or ID
+//         .mod("lithium", "mc26.3-0.26.3-fabric")   // one version of it, by version number or ID
 //         .property("motd", "A Seal server")        // server.properties
 //         .install();
 //
@@ -70,6 +70,13 @@ class MinecraftServerUtil {
     // a token, for servers with BungeeGuard's plugin; NONE tells nothing, so a server sees each player as
     // offline, with an offline UUID.
     public enum Forwarding { NONE, LEGACY, BUNGEEGUARD, MODERN }
+
+    // A mod or plugin from Modrinth: its project, by slug or ID, and its version, by version number or
+    // version ID, empty for the newest.
+    record Project(string name, string version) {
+        // As the start reads it: slug, or slug@version.
+        string spec() { return version.length() == 0 ? name : name + "@" + version; }
+    }
 
     public static Builder vanilla(string name, string minecraftVersion) {
         return new Builder(name, Loader.VANILLA, minecraftVersion);
@@ -152,15 +159,26 @@ class MinecraftServerUtil {
             return this;
         }
 
-        // Fabric, Forge, NeoForge: a mod, a Modrinth project, "slug" or "slug@version".
+        // Fabric, Forge, NeoForge: a mod, a Modrinth project by its slug or ID, in its newest version for
+        // the server's loader and Minecraft version.
         public Builder mod(string project) {
-            draft.mods.add(project);
+            return mod(project, "");
+        }
+
+        // That version of it: its version number as Modrinth has it, whole ("mc26.3-0.26.3-fabric"), or
+        // its version ID.
+        public Builder mod(string project, string version) {
+            draft.mods.add(new Project(project, version));
             return this;
         }
 
-        // Paper, Velocity: a plugin, the same.
+        // Paper, Velocity: a plugin, as a mod is: plugin("luckperms"), plugin("luckperms", "v5.5.71-bukkit").
         public Builder plugin(string project) {
-            draft.plugins.add(project);
+            return plugin(project, "");
+        }
+
+        public Builder plugin(string project, string version) {
+            draft.plugins.add(new Project(project, version));
             return this;
         }
 
@@ -254,8 +272,8 @@ class MinecraftServerUtil {
         bit acceptEula = false;
         bit openFirewall = true;
         bit autoUpdate = false;
-        List<string> mods = new List();
-        List<string> plugins = new List();
+        List<Project> mods = new List();
+        List<Project> plugins = new List();
         Pkg jdk = null;                          // null for the one minecraftVersion needs
         List<string> propertyKeys = new List();
         List<string> propertyValues = new List();
@@ -404,8 +422,8 @@ class MinecraftServerUtil {
                 throw new IllegalArgumentException("Minecraft server " + name + ": " + describe() + " has no server.properties; "
                     + "a proxy's own settings are its velocity.toml's");
             }
-            for (string m : mods) { checkProject(m); }
-            for (string p : plugins) { checkProject(p); }
+            for (Project m : mods) { checkProject(m, "mod"); }
+            for (Project p : plugins) { checkProject(p, "plugin"); }
             for (int k = 0; k < propertyKeys.size(); k++) {
                 if (!MinecraftServerUtil.plain(propertyKeys.get(k), ".-_") || propertyValues.get(k).contains("\n")) {
                     throw new IllegalArgumentException("Minecraft server " + name + ": no property " + propertyKeys.get(k));
@@ -419,9 +437,19 @@ class MinecraftServerUtil {
             }
         }
 
-        void checkProject(string spec) {
-            if (!MinecraftServerUtil.plain(spec, ".-_+@") || spec.length() == 0 || spec.startsWith("@")) {
-                throw new IllegalArgumentException("Minecraft server " + name + ": no Modrinth project \"" + spec + "\"");
+        void checkProject(Project p, string kind) {
+            string about = "Minecraft server " + name + ": ";
+            int at = p.name.indexOf('@');
+            if (at > 0) {
+                throw new IllegalArgumentException(about + "no Modrinth project \"" + p.name + "\": a version is "
+                    + kind + "'s second argument, " + kind + "(\"" + p.name.substring(0, at) + "\", \""
+                    + p.name.substring(at + 1, p.name.length()) + "\")");
+            }
+            if (p.name.length() == 0 || !MinecraftServerUtil.plain(p.name, ".-_+")) {
+                throw new IllegalArgumentException(about + "no Modrinth project \"" + p.name + "\"");
+            }
+            if (p.version.contains("\t") || p.version.contains("\n")) {
+                throw new IllegalArgumentException(about + "no version \"" + p.version + "\" of " + p.name);
             }
         }
 
@@ -563,11 +591,11 @@ class MinecraftServerUtil {
 
         // The mods given; behind a proxy's modern forwarding, Fabric's with FabricProxy-Lite, and the
         // Fabric API it needs.
-        List<string> modList() {
-            List<string> list = MinecraftServerUtil.copyOf(mods);
+        List<Project> modList() {
+            List<Project> list = MinecraftServerUtil.copyOf(mods);
             if (loader == Loader.FABRIC && proxy != null && proxy.forwarding == Forwarding.MODERN) {
                 for (string slug : ["fabric-api", "fabricproxy-lite"]) {
-                    if (!MinecraftServerUtil.names(list, slug)) { list.add(slug); }
+                    if (!MinecraftServerUtil.names(list, slug)) { list.add(new Project(slug, "")); }
                 }
             }
             return list;
@@ -619,8 +647,8 @@ class MinecraftServerUtil {
             b.append("PORT=").append(port).append('\n');
             b.append("AUTO_UPDATE=").append(autoUpdate ? "1" : "0").append('\n');
             b.append("EULA=").append(acceptEula ? "1" : "0").append('\n');
-            b.append("MODS=(").append(MinecraftServerUtil.words(modList())).append(")\n");
-            b.append("PLUGINS=(").append(MinecraftServerUtil.words(plugins)).append(")\n");
+            b.append("MODS=(").append(MinecraftServerUtil.words(MinecraftServerUtil.specs(modList()))).append(")\n");
+            b.append("PLUGINS=(").append(MinecraftServerUtil.words(MinecraftServerUtil.specs(plugins))).append(")\n");
             b.append("PROPERTIES=(").append(MinecraftServerUtil.words(propertyLines())).append(")\n");
             b.append("BEHIND=").append(proxy != null ? proxy.forwarding.name() : "").append('\n');
             b.append("FORWARDING=").append(loader == Loader.VELOCITY ? forwarding.name() : "").append('\n');
@@ -659,12 +687,18 @@ class MinecraftServerUtil {
         return copy;
     }
 
-    // Whether a Modrinth project is among those given, as "slug" or "slug@version".
-    static bit names(List<string> specs, string slug) {
-        for (string spec : specs) {
-            if (spec == slug || spec.startsWith(slug + "@")) { return true; }
+    // Whether a Modrinth project is among those given, in any version.
+    static bit names(List<Project> projects, string slug) {
+        for (Project p : projects) {
+            if (p.name == slug) { return true; }
         }
         return false;
+    }
+
+    static List<string> specs(List<Project> projects) {
+        List<string> list = new List();
+        for (Project p : projects) { list.add(p.spec()); }
+        return list;
     }
 
     // Letters, digits, and the characters given.
