@@ -127,6 +127,8 @@ abstract class Service<T> {
     private<Server, Proxy> string serversToml() { return ""; }
     private<Server, Proxy> string secretVariable() { return ""; }    // where the server finds the secret
     private<Server, Proxy> string curseforgeKeyFile() { return ""; } // the API key's file, if it has CurseForge mods
+    private<Server, Proxy> string opsJson() { return "[]"; }         // the operators given, as JSON
+    private<Server, Proxy> string bansJson() { return "[]"; }        // the players banned, as JSON
 
     // The port it listens on: the one given, or its own.
     private<Server, Proxy> int listenPort() {
@@ -277,6 +279,8 @@ abstract class Service<T> {
         b.append("SERVERS=").append(sh(serversToml())).append('\n');
         b.append("CONFIGS=").append(sh(configsJson())).append('\n');
         b.append("CURSEFORGE_KEY=").append(sh(curseforgeKeyFile())).append('\n');
+        b.append("OPS=").append(sh(opsJson())).append('\n');
+        b.append("BANS=").append(sh(bansJson())).append('\n');
         b.append(PREPARE);
         return b.toString();
     }
@@ -834,5 +838,31 @@ abstract class Service<T> {
           fi
         done < <(jq -c '.[]' <<<"$CONFIGS")
         mv -f .seal-mc/configs.next .seal-mc/configs
+
+        # players FILE STATE NAMED DEFAULTS: ops.json or banned-players.json, if the configuration names
+        # anyone, or did. Each player it names is set, one it named and no longer does goes, and those the
+        # server added stay. An entry already there keeps what NAMED doesn't say, and a new one has DEFAULTS.
+        # A broken file stops the start, whose reason is then in the log: Paper would set it aside and
+        # start with an empty list, and let a banned player in.
+        players() {
+          local file=$1 state=.seal-mc/$2 named=$3 defaults=$4 was='[]'
+          if [ -s "$state" ]; then was=$(cat "$state"); fi
+          if [ "$named" = '[]' ] && [ "$was" = '[]' ]; then return 0; fi
+          if [ ! -s "$file" ]; then echo '[]' > "$file"; fi
+          jq --argjson named "$named" --argjson was "$was" --argjson defaults "$defaults" '
+            def id: (.uuid // "") | ascii_downcase;
+            if type != "array" then error("not a list") else . end
+            | . as $old
+            | map(select(id | IN($named[].uuid, $was[]) | not))
+              + [$named[] | . as $n | $defaults + ([$old[] | select(id == $n.uuid)][0] // {}) + $n]' "$file" > "$file.next" \\
+            || { rm -f "$file.next"; fail "$file can't be read as a list of players, so its players can't be set: mend it, or delete it"; }
+          mv -f "$file.next" "$file"
+          jq -c 'map(.uuid)' <<<"$named" > "$state"
+        }
+
+        # Last, so that a config file given whole for one of these can't undo them.
+        players ops.json ops "$OPS" '{"bypassesPlayerLimit":false}'
+        now=$(date '+%Y-%m-%d %H:%M:%S %z')
+        players banned-players.json bans "$BANS" "$(jq -cn --arg now "$now" '{created: $now, source: "Server", reason: "Banned by an operator."}')"
         """;
 }

@@ -55,6 +55,11 @@ class Server extends(Service<Server>) {
     List<Service.Project> mods = new List();
     List<string> propertyKeys = new List();
     List<string> propertyValues = new List();
+    List<Player> ops = new List();
+    List<Player> bans = new List();
+
+    // A player named in ops.json, at a level, or in banned-players.json, at level 0.
+    record Player(string name, string uuid, int level) { }
 
     private<Proxy> Proxy proxy = null;       // the proxy this is behind, once given to one
 
@@ -144,6 +149,21 @@ class Server extends(Service<Server>) {
         return this;
     }
 
+    // An operator, in ops.json at every start: the player's name, their UUID, with or without its
+    // dashes, and a permission level from 1 to 4, where 4 can do everything. Operators made in the game
+    // are kept; one no longer given here is taken out.
+    public Server op(string name, string uuid, int level) {
+        ops.add(new Player(name, uuid, level));
+        return this;
+    }
+
+    // A player banned, in banned-players.json at every start: their name, and their UUID. Bans made in
+    // the game are kept; one no longer given here is lifted.
+    public Server ban(string name, string uuid) {
+        bans.add(new Player(name, uuid, 0));
+        return this;
+    }
+
     // The service, its user, and the port. A server given to a proxy is the proxy's to install.
     public void install() {
         if (proxy != null) {
@@ -170,6 +190,46 @@ class Server extends(Service<Server>) {
     private<Service> string behindMode() { return proxy != null ? proxy.forwardingMode.name() : ""; }
     private<Service> string secretPath() { return proxy != null ? proxy.secretPath() : ""; }
     private<Service> string curseforgeKeyFile() { return usesCurseforge() ? curseforgeKeyPath : ""; }
+
+    // The operators given, as JSON for the start.
+    private<Service> string opsJson() {
+        StringBuilder b = new StringBuilder();
+        for (Player p : ops) {
+            b.append(b.length() > 0 ? "," : "").append(playerJson(p)).append(",\"level\":").append(p.level).append('}');
+        }
+        return "[" + b.toString() + "]";
+    }
+
+    // The players banned, as JSON for the start: for good, since the configuration says so at every start.
+    private<Service> string bansJson() {
+        StringBuilder b = new StringBuilder();
+        for (Player p : bans) {
+            b.append(b.length() > 0 ? "," : "").append(playerJson(p)).append(",\"expires\":\"forever\"}");
+        }
+        return "[" + b.toString() + "]";
+    }
+
+    // The start of a player's entry, its object left open.
+    string playerJson(Player p) {
+        return "{\"uuid\":" + ConfigFile.quote(canonical(p.uuid)) + ",\"name\":" + ConfigFile.quote(p.name);
+    }
+
+    // A UUID as the game's files have it, in lower case with its dashes, or empty if it isn't one.
+    // Mojang's API gives them without the dashes, and a server ignores an entry without them, unsaid.
+    static string canonical(string uuid) {
+        StringBuilder digits = new StringBuilder();
+        for (int k = 0; k < uuid.length(); k++) {
+            if (uuid.charAt(k) != '-') { digits.append(uuid.charAt(k)); }
+        }
+        string hex = digits.toString().toLower();
+        if (hex.length() != 32 || (uuid.contains("-") && uuid.length() != 36)) { return ""; }
+        for (int k = 0; k < hex.length(); k++) {
+            char c = hex.charAt(k);
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) { return ""; }
+        }
+        return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16) + "-"
+            + hex.substring(16, 20) + "-" + hex.substring(20, 32);
+    }
 
     // Whether it is all digits, as a CurseForge project ID.
     static bit digits(string s) {
@@ -233,6 +293,30 @@ class Server extends(Service<Server>) {
                 throw new IllegalArgumentException(about + "no property " + propertyKeys.get(k));
             }
         }
+        List<string> seen = new List();
+        for (Player p : ops) {
+            checkPlayer(about, p, seen);
+            if (p.level < 1 || p.level > 4) {
+                throw new IllegalArgumentException(about + "no operator level " + p.level + " for " + p.name + ": it is 1 to 4");
+            }
+        }
+        for (Player p : bans) { checkPlayer(about, p, seen); }
+    }
+
+    // A player's name and UUID, which the server would otherwise drop from its file without a word.
+    void checkPlayer(string about, Player p, List<string> seen) {
+        if (p.name.length() == 0 || p.name.contains("\n") || p.name.contains("\t")) {
+            throw new IllegalArgumentException(about + "no player \"" + p.name + "\"");
+        }
+        string id = canonical(p.uuid);
+        if (id.length() == 0) {
+            throw new IllegalArgumentException(about + p.name + "'s UUID \"" + p.uuid + "\" isn't one: "
+                + "32 hexadecimal digits, as 069a79f4-44e9-4726-a5be-fca90e38aaf5");
+        }
+        if (seen.contains(id)) {
+            throw new IllegalArgumentException(about + "the player " + id + " (" + p.name + ") is given twice: op() or ban(), once");
+        }
+        seen.add(id);
     }
 
     // Whether this takes the proxy's forwarding as this file sets it up: any server takes NONE, Paper

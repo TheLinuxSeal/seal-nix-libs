@@ -21,6 +21,9 @@ class Main {
             .config(new ConfigFile("config/other.json5").set("a\\.b.c", "x"))
             .config(new ConfigFile("config/lithium.properties").set("mixin.ai.pathing", false))
             .config(new ConfigFile("config/whole.conf").text("hello\n"))
+            .op("seal", "11111111-2222-4333-8444-555555555555", 4)
+            .op("mod", "AAAAAAAABBBB4CCC8DDDEEEEEEEEEEEE", 2)        // Mojang's form: no dashes, and any case
+            .ban("griefer", "99999999-8888-4777-8666-555555555555")
             .install();
 
         var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3")

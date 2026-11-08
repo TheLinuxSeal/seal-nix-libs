@@ -157,6 +157,58 @@ The values are in the Nix store, which every user of the machine can read: no pa
 A proxy has no `server.properties`, and no `.property()`. Its settings are in
 `velocity.toml` ([Velocity proxies](proxy.md#velocitytoml)).
 
+## Operators and bans
+
+```java
+.op("seal", "11111111-2222-4333-8444-555555555555", 4)
+.op("helper", "aaaaaaaabbbb4ccc8dddeeeeeeeeeeee", 2)
+.ban("griefer", "99999999-8888-4777-8666-555555555555")
+```
+
+`.op(name, uuid, level)` makes a player an operator, in `ops.json`, and `.ban(name, uuid)` bans them
+for good, in `banned-players.json`. The level is from 1 to 4:
+
+| Level | Can |
+| --- | --- |
+| 1 | Build in the spawn protection area |
+| 2 | Also use cheat commands and command blocks |
+| 3 | Also manage players: `/ban`, `/kick`, `/op` |
+| 4 | Everything, as `/stop` |
+
+A player is known by the UUID, and the name is only what the files and `/banlist` show. Nothing looks
+a UUID up: the one given, with or without its dashes, goes in the file, so it works with no network.
+It has to be the UUID the server sees, which depends on whether the server signs players in:
+
+| The server | The UUID | To find it |
+| --- | --- | --- |
+| Online, the default, or behind a proxy with `MODERN` or `LEGACY` forwarding | The account's | `curl https://api.mojang.com/users/profiles/minecraft/<name>` |
+| `online-mode=false`, or behind a proxy with `Forwarding.NONE` | Made from the name | The command below |
+
+```sh
+python3 -c 'import hashlib,sys,uuid; print(uuid.UUID(bytes=hashlib.md5(b"OfflinePlayer:"+sys.argv[1].encode()).digest(), version=3))' <name>
+```
+
+Names are exact here: on an offline server, `Seal` and `seal` are two players with two UUIDs.
+
+Both are set at every start, as `.property()` is:
+
+- **A player given here** is set again at every start, so a `/deop` or `/pardon` in the game lasts only
+  until the next one. Take them out of the configuration instead.
+- **A player taken out of the configuration** is no longer an operator, or banned, from the next start.
+- **Anyone added in the game**, with `/op` or `/ban`, stays: only the players the configuration has
+  named are touched.
+- **What else an entry says** stays, if it is already in the file: a `bypassesPlayerLimit` or a ban's
+  reason edited by hand, or the date of a ban. A new ban's reason is `Banned by an operator.`, and a
+  ban given here never expires.
+
+A file that isn't a JSON list stops the start, and is left as it was
+([Errors](errors.md#when-a-server-starts)): left to itself, Paper would set it aside and start with an
+empty list, letting a banned player in. A server that has never had an `.op()` or `.ban()` has its
+files left alone.
+
+Each server has its own lists, so to keep someone off a whole network, give `.ban()` to each server
+behind the proxy. A proxy has neither, and no `.op()` or `.ban()`.
+
 ## Config files
 
 ```java

@@ -235,7 +235,7 @@ class ConfigFile {
     }
 
     // A string in JSON.
-    static string quote(string s) {
+    private<Server> static string quote(string s) {
         string digits = "0123456789abcdef";
         StringBuilder b = new StringBuilder();
         b.append('"');

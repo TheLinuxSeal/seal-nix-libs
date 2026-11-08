@@ -43,7 +43,10 @@ The service's `preStart` runs first, as `minecraft`, in the server's folder:
    ([Servers behind a proxy](proxy.md#servers-behind-a-proxy)). For a proxy: its forwarding secret, if
    it makes it, and `velocity.toml` ([velocity.toml](proxy.md#velocitytoml)).
 4. **The config files**: what the configuration no longer sets is taken out, and then each
-   [`ConfigFile`](servers.md#config-files) is applied, last, so that it has the last word on any file.
+   [`ConfigFile`](servers.md#config-files) is applied, after the settings, so that it has the last word
+   on them.
+5. **[Operators and bans](servers.md#operators-and-bans)**: each player given goes in `ops.json` or
+   `banned-players.json`, and those no longer given come out.
 
 Then the server itself: `java -Xms<memory> -Xmx<memory> <jvmArgs> <the loader's arguments>`, with
 the forwarding secret in its environment behind a proxy.
@@ -87,7 +90,8 @@ The requests say who they are from, as Modrinth asks: `seal-nix-libs minecraft
     ├── mods.for             the loader and Minecraft version they were chosen for (plugins.for)
     ├── behind               the forwarding of the proxy this is behind; empty for none
     ├── installer.log        Forge's or NeoForge's installer's output
-    └── configs              the config files of the last start, to know what no longer is
+    ├── configs              the config files of the last start, to know what no longer is
+    └── ops, bans            the players they named, for the same reason
 ```
 
 Deleting `.seal-mc/requested` chooses the loader again at the next start, and deleting `mods.for`
@@ -95,8 +99,9 @@ Deleting `.seal-mc/requested` chooses the loader again at the next start, and de
 
 ## Commands and RCON
 
-A service has no console to type in. Commands go through RCON, or the game: `ops.json` and the
-others can also be edited, with the server stopped.
+A service has no console to type in. Commands go through RCON, or the game. Operators and bans can
+be [in the configuration](servers.md#operators-and-bans), and `ops.json` and the others can also be
+edited, with the server stopped.
 
 ```java
 .property("enable-rcon", "true")
