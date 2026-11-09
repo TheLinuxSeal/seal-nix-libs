@@ -90,6 +90,7 @@ These name the proxy, then the server: `Minecraft server proxy: lobby ...`.
 | `and the proxy both have port <port>; give one another` | The server and its proxy have one port. |
 | `and <server> both have port <port>; give one another` | Two servers behind the proxy have one port. |
 | `(<loader>) can't take <mode> forwarding as this sets it up (...)` | The server can't take the proxy's forwarding: [which can](proxy.md#servers-behind-a-proxy). Give the proxy another, or set the server up by hand and give the proxy its address. |
+| `<name> is NeoForge <version>; behind a proxy's MODERN forwarding, NeoForge is 1.21 or newer, which NeoVelocity is for` | NeoVelocity has no build for an older Minecraft. Give the server 1.21 or newer, or the proxy `forwarding(Forwarding.NONE)`. |
 | `is Paper <version>; behind a proxy, Paper is 1.19 or newer, whose config/paper-global.yml this sets` | Paper before 1.19 keeps its forwarding elsewhere: give it by its address, set up by hand. |
 
 And for the server itself: `Minecraft server <name> is behind the proxy <proxy>, whose install()
@@ -145,5 +146,17 @@ And from the server itself, in the same log:
 | A mod's crash, after a start that chose again | A new version of a mod (from `autoUpdate()`, or a new Minecraft version) that doesn't work with the others: give the one that worked as its version, `.modrinthMod("lithium", "mc26.3-0.26.3-fabric")`. |
 
 A player turned away by a server behind a proxy (FabricProxy-Lite says `This server requires you to
-connect with Velocity.`) has connected to it without the proxy, or the proxy and the server have
-different secrets: connect to the proxy, and after a new secret, restart both.
+connect with Velocity.`, NeoVelocity `This server requires you to connect via a Velocity Proxy using
+Modern Forwarding.`) has connected to it without the proxy, or the proxy and the server have
+different secrets (NeoVelocity: `Unable to verify proxy data integrity.`): connect to the proxy, and
+after a new secret, restart both.
+
+On NeoForge 1.21.9 to 1.21.11, `Internal Exception: java.lang.UnsupportedOperationException` for every
+signed-in player is [NeoVelocity's own bug](proxy.md#servers-behind-a-proxy): Minecraft 1.21.8 or older,
+or an offline proxy.
+
+On NeoForge, `Incompatible mod detected during login handshake.` or `Took too long to log in` is
+another mod using the login phase: `.set("compatibility.login-custom-packet-catchall", false)` in a
+[`ConfigFile`](proxy.md#servers-behind-a-proxy) for `config/neovelocity-common.toml`. And `too many
+known packs` in the proxy's log, with a large modpack, is Velocity's limit of 64:
+`.jvmArg("-Dvelocity.max-known-packs=128")` on the proxy.

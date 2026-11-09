@@ -154,7 +154,8 @@ and takes the proxy's forwarding:
 | --- | --- | --- | --- | --- |
 | Paper, 1.19 and newer | yes | yes | no | yes |
 | Fabric | yes | no | no | yes, with FabricProxy-Lite |
-| vanilla, Forge, NeoForge | yes | no | no | no |
+| NeoForge, 1.21 and newer | yes | no | no | yes, with NeoVelocity |
+| NeoForge before 1.21, vanilla, Forge | yes | no | no | no |
 
 A "no" is an error when the configuration builds: give the proxy another forwarding, or set the server
 up by hand and give the proxy [its address](#a-server-set-up-by-hand).
@@ -169,6 +170,28 @@ up by hand and give the proxy [its address](#a-server-set-up-by-hand).
 **Fabric**, for `MODERN`, gets the mods `fabric-api` and `fabricproxy-lite`, if they aren't among its
 mods, and the secret in `FABRIC_PROXY_SECRET` as it starts. FabricProxy-Lite's own settings
 (`config/FabricProxy-Lite.toml`) are its defaults.
+
+**NeoForge**, for `MODERN`, gets the mod `neovelocity`, if it isn't among its mods, and in
+`config/neovelocity-common.toml`, the path of the proxy's secret
+(`forwarding.forwarding-secret`) and `forwarding.forwarding-secret-type = "FILE"`. NeoVelocity reads
+the secret from there as the server starts, so no file of the server's holds it. What else you give
+for that file goes in with those two, and wins over them; a `.text()` is the whole file, as given:
+
+```java
+.config(new ConfigFile("config/neovelocity-common.toml").set("compatibility.login-custom-packet-catchall", false))
+```
+
+NeoForge fills in the rest of that file at the first start, and leaves the two lines it was given
+beside it as `neovelocity-common-1.toml.bak`, which holds the path and no secret.
+
+That setting is for mods that use the login phase themselves, as the Forgified Fabric API can.
+NeoVelocity's builds so far are for Minecraft 1.21 to 1.21.11, and none for 26.x: on a version it has
+no build for, the server's start stops with `neovelocity has no version for neoforge 26.3 on Modrinth`.
+
+On 1.21.9 to 1.21.11, NeoVelocity 1.2.6 can't log in a player who has a skin, which every player signed
+in with Mojang has: they are turned away with `Internal Exception: java.lang.UnsupportedOperationException`
+([its issue 31](https://github.com/Gabwasnt/NeoVelocity/issues/31)). Behind those versions only an offline
+proxy's players get in. 1.21 to 1.21.8 don't have this.
 
 The `online-mode` given to Paper is the proxy's own default. A proxy made offline by hand (`online-mode
 = false` in `velocity.toml`) needs Paper's set by hand to match.
@@ -190,7 +213,7 @@ A server no longer given to a proxy, and installed on its own, is put back at it
 `online-mode=true`, `server-ip=` (every address), Paper's forwarding off. Its port is in the firewall
 again, unless `.openFirewall(false)`, and its folder stays `0750`. A Fabric server loses
 FabricProxy-Lite, and `fabric-api` too unless it names it: give it `.modrinthMod("fabric-api")` if its other
-mods need it.
+mods need it. A NeoForge server loses NeoVelocity, and the two settings in its config.
 
 ## A server set up by hand
 
@@ -201,7 +224,9 @@ same secret, and
   `proxies.velocity.secret` in `config/paper-global.yml` (or the secret in `PAPER_VELOCITY_SECRET`);
 - Fabric: FabricProxy-Lite, with the secret in its `config/FabricProxy-Lite.toml` (or in
   `FABRIC_PROXY_SECRET`), and `online-mode=false`;
-- Forge and NeoForge: a mod for Velocity's modern forwarding, and `online-mode=false`.
+- NeoForge: NeoVelocity, with the secret, or its file, in its `config/neovelocity-common.toml`, and
+  `online-mode=false`;
+- Forge: a mod for Velocity's modern forwarding, and `online-mode=false`.
 
 For a server on another machine, `.forwardingSecretFile()` on the proxy and the same secret on that
 machine (from sops-nix or agenix, on both) keeps them one. A server built with this library on that

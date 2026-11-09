@@ -75,6 +75,13 @@
           assert lib.hasInfix ''"hub.example.com" = ["hub"]'' s.minecraft-proxy.preStart;
           assert lib.elem "minecraft-proxy.service" s.minecraft-hub-server.after;
           assert !(s ? minecraft-hub);
+          assert lib.hasInfix "MODS=('neovelocity')" s.minecraft-neo-plain.preStart;
+          assert lib.hasInfix ''{"path":"config/neovelocity-common.toml","format":"toml","text":null,"set":[{"key":["forwarding","forwarding-secret"],"value":"/var/lib/minecraft/proxy/forwarding.secret"},{"key":["forwarding","forwarding-secret-type"],"value":"FILE"}]}'' s.minecraft-neo-plain.preStart;
+          assert lib.hasInfix ''{"key":["forwarding","forwarding-secret-type"],"value":"FILE"},{"key":["compatibility","login-custom-packet-catchall"],"value":false}'' s.minecraft-neo.preStart;
+          assert lib.hasInfix "SECRET='/var/lib/minecraft/proxy/forwarding.secret'" s.minecraft-neo.script;
+          assert !(lib.hasInfix "export" s.minecraft-neo.script);
+          assert lib.hasInfix "PROPERTIES=('online-mode=false' 'server-ip=127.0.0.1')" s.minecraft-neo.preStart;
+          assert s.minecraft-neo.serviceConfig.StateDirectoryMode == "0750";
           pkgs.runCommand "minecraft" { } ''
             head -1 ${module} | grep -q "from Main.seal, sealnix/libs/minecraft/ConfigFile.seal, sealnix/libs/minecraft/Forwarding.seal, sealnix/libs/minecraft/Loader.seal, sealnix/libs/minecraft/Proxy.seal, sealnix/libs/minecraft/Server.seal, sealnix/libs/minecraft/Service.seal:"
             test "$(grep -c 'ps.json5' ${module})" = 1

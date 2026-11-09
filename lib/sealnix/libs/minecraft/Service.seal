@@ -31,7 +31,7 @@ abstract class Service<T> {
     bit firewall = true;
     bit updates = false;
     private<Server, Proxy> List<Project> plugins = new List();
-    List<ConfigFile> configs = new List();
+    private<Server> List<ConfigFile> configs = new List();
     Pkg customJdk = null;                    // null for the one the service needs
 
     private<Server, Proxy> new(string name) {
@@ -126,6 +126,8 @@ abstract class Service<T> {
     private<Server, Proxy> bit ownsSecret() { return false; }
     private<Server, Proxy> string serversToml() { return ""; }
     private<Server, Proxy> string secretVariable() { return ""; }    // where the server finds the secret
+    private<Server, Proxy> bit readsSecret() { return false; }       // whether it reads it as it starts
+    private<Server, Proxy> List<ConfigFile> configFiles() { return configs; }   // the config files a start applies
     private<Server, Proxy> string curseforgeKeyFile() { return ""; } // the API key's file, if it has CurseForge mods
     private<Server, Proxy> string opsJson() { return "[]"; }         // the operators given, as JSON
     private<Server, Proxy> string bansJson() { return "[]"; }        // the players banned, as JSON
@@ -255,7 +257,7 @@ abstract class Service<T> {
     // The config files, as JSON for the start.
     string configsJson() {
         StringBuilder b = new StringBuilder();
-        for (ConfigFile c : configs) {
+        for (ConfigFile c : configFiles()) {
             b.append(b.length() > 0 ? "," : "").append(c.spec());
         }
         return "[" + b.toString() + "]";
@@ -292,15 +294,16 @@ abstract class Service<T> {
         b.append("set -euo pipefail\n");
         b.append("mapfile -t launch < .seal-mc/launch\n");
         string variable = secretVariable();
-        if (variable.length() > 0) {
-            // the proxy's secret, which the server takes from its environment, so no file of its own holds it
+        if (readsSecret()) {
+            // the proxy's secret, which the server takes from its environment, or from the secret's own
+            // file, so no file of its own holds it
             b.append("SECRET=").append(sh(secretPath())).append('\n');
             b.append("if ! secret=$(cat -- \"$SECRET\") || [ -z \"$secret\" ]; then\n");
             b.append("  echo \"minecraft: no forwarding secret to read in $SECRET, which minecraft-")
                 .append(front().name).append(" signs with\" >&2\n");
             b.append("  exit 1\n");
             b.append("fi\n");
-            b.append("export ").append(variable).append("=$secret\n");
+            if (variable.length() > 0) { b.append("export ").append(variable).append("=$secret\n"); }
         }
         b.append("exec java -Xms").append(heap).append(" -Xmx").append(heap);
         for (string a : jvmArgs) { b.append(' ').append(sh(a)); }

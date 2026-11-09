@@ -341,15 +341,20 @@ class Server extends(Service<Server>) {
     }
 
     // Whether this takes the proxy's forwarding as this file sets it up: any server takes NONE, Paper
-    // MODERN and LEGACY, Fabric MODERN.
+    // MODERN and LEGACY, Fabric and NeoForge MODERN.
     private<Proxy> void checkBehind(Proxy given) {
         Forwarding f = given.forwardingMode;
         bit paper = loaderType == Loader.PAPER && (f == Forwarding.MODERN || f == Forwarding.LEGACY);
         bit fabric = loaderType == Loader.FABRIC && f == Forwarding.MODERN;
-        if (f != Forwarding.NONE && !paper && !fabric) {
+        bit neoforge = loaderType == Loader.NEOFORGE && f == Forwarding.MODERN;
+        if (f != Forwarding.NONE && !paper && !fabric && !neoforge) {
             throw new IllegalArgumentException("Minecraft server " + given.name + ": " + name + " (" + describe() + ") can't "
-                + "take " + f.name() + " forwarding as this sets it up (Paper takes MODERN or LEGACY, Fabric MODERN): give "
-                + "the proxy forwarding(Forwarding.NONE), or set up " + name + " by hand and give the proxy its address");
+                + "take " + f.name() + " forwarding as this sets it up (Paper takes MODERN or LEGACY, Fabric and NeoForge "
+                + "MODERN): give the proxy forwarding(Forwarding.NONE), or set up " + name + " by hand and give the proxy its address");
+        }
+        if (neoforge && minecraft.startsWith("1.") && number(minecraft, 1) < 21) {
+            throw new IllegalArgumentException("Minecraft server " + given.name + ": " + name + " is NeoForge " + minecraft
+                + "; behind a proxy's MODERN forwarding, NeoForge is 1.21 or newer, which NeoVelocity is for");
         }
         if (loaderType == Loader.PAPER && minecraft.startsWith("1.") && number(minecraft, 1) < 19) {
             throw new IllegalArgumentException("Minecraft server " + given.name + ": " + name + " is Paper " + minecraft
@@ -357,8 +362,8 @@ class Server extends(Service<Server>) {
         }
     }
 
-    // Where a server behind a proxy finds its modern forwarding's secret as it starts: Paper's
-    // PAPER_VELOCITY_SECRET, FabricProxy-Lite's FABRIC_PROXY_SECRET; empty for none.
+    // The variable a server behind a proxy's modern forwarding finds its secret in as it starts:
+    // Paper's PAPER_VELOCITY_SECRET, FabricProxy-Lite's FABRIC_PROXY_SECRET; empty for none.
     private<Service> string secretVariable() {
         if (proxy == null || proxy.forwardingMode != Forwarding.MODERN) { return ""; }
         if (loaderType == Loader.PAPER) { return "PAPER_VELOCITY_SECRET"; }
@@ -366,8 +371,34 @@ class Server extends(Service<Server>) {
         return "";
     }
 
-    // The mods given; behind a proxy's modern forwarding, Fabric's with FabricProxy-Lite, and the
-    // Fabric API it needs.
+    // Whether it is NeoForge, behind a proxy's modern forwarding, which NeoVelocity takes.
+    bit neoVelocity() {
+        return loaderType == Loader.NEOFORGE && proxy != null && proxy.forwardingMode == Forwarding.MODERN;
+    }
+
+    // Whether it reads the proxy's secret as it starts, so that a start with none to read says so.
+    private<Service> bit readsSecret() {
+        return secretVariable().length() > 0 || neoVelocity();
+    }
+
+    // The config files a start applies: those given, and NeoVelocity's, told to read the proxy's secret
+    // from its file, so that its config holds the path alone. What is given for that file comes after,
+    // and so wins; a text() is the whole file, as given.
+    private<Service> List<ConfigFile> configFiles() {
+        if (!neoVelocity()) { return configs; }
+        ConfigFile neo = new ConfigFile("config/neovelocity-common.toml")
+            .set("forwarding.forwarding-secret", secretPath())
+            .set("forwarding.forwarding-secret-type", "FILE");
+        List<ConfigFile> files = new List();
+        for (ConfigFile c : configs) {
+            if (c.filePath() == neo.filePath()) { neo = neo.under(c); } else { files.add(c); }
+        }
+        files.add(neo);
+        return files;
+    }
+
+    // The mods given; behind a proxy's modern forwarding, Fabric's with FabricProxy-Lite and the
+    // Fabric API it needs, and NeoForge's with NeoVelocity.
     private<Service> List<string> modSpecs() {
         List<Service.Project> list = copyOf(mods);
         if (loaderType == Loader.FABRIC && proxy != null && proxy.forwardingMode == Forwarding.MODERN) {
@@ -375,6 +406,7 @@ class Server extends(Service<Server>) {
                 if (!names(list, slug)) { list.add(new Service.Project(slug, "", false)); }
             }
         }
+        if (neoVelocity() && !names(list, "neovelocity")) { list.add(new Service.Project("neovelocity", "", false)); }
         return specs(list);
     }
 

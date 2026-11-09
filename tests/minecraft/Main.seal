@@ -35,11 +35,16 @@ class Main {
             .acceptEula().modrinthMod("lithium");
         smp.port(25567);                                     // a server given to the proxy can still change
         var hub = new Server("hub-server").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25568);
+        var neo = new Server("neo").loader(Loader.NEOFORGE).minecraftVersion("1.21.11").acceptEula().port(25569)
+            .config(new ConfigFile("config/neovelocity-common.toml").set("compatibility.login-custom-packet-catchall", false));
+        var plain = new Server("neo-plain").loader(Loader.NEOFORGE).minecraftVersion("1.21.11").acceptEula().port(25571);
 
         new Proxy("proxy")
             .server(lobby)
             .server(smp)
             .server(hub, "hub")                              // under another name on the proxy
+            .server(neo)
+            .server(plain)
             .server("creative", "10.0.0.5:25565")
             .tryServer("lobby")
             .tryServer("smp")

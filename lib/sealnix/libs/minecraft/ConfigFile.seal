@@ -101,6 +101,13 @@ class ConfigFile {
         return this;
     }
 
+    // These settings with another file's over them; or that file alone, if it is a whole text().
+    private<Server> ConfigFile under(ConfigFile other) {
+        if (other.wholeGiven) { return other; }
+        for (Setting s : other.settings) { put(s.key, s.json, s.plain, s.list); }
+        return this;
+    }
+
     string checked(string key, double value) {
         string number = "" + value;
         if (number.contains("NaN") || number.contains("Infinity")) { badNumber = key; }
@@ -116,7 +123,7 @@ class ConfigFile {
         return "";
     }
 
-    private<Service> string filePath() {
+    private<Service, Server> string filePath() {
         return path;
     }
 

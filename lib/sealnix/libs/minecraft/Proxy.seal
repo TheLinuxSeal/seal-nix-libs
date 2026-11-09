@@ -10,8 +10,8 @@ import seal.util.List;
 // forwarding() says: MODERN, Velocity's own, unless it says otherwise. A Server given to the proxy is
 // set up behind it: it listens on 127.0.0.1 alone, out of the firewall, with online-mode off (the
 // proxy signs players in), and takes the proxy's forwarding: Paper by itself, Fabric with
-// FabricProxy-Lite, which joins its mods with the Fabric API it needs. The proxy's install() installs
-// it. A server elsewhere is given by its address, and set up by hand.
+// FabricProxy-Lite, which joins its mods with the Fabric API it needs, NeoForge with NeoVelocity. The
+// proxy's install() installs it. A server elsewhere is given by its address, and set up by hand.
 //
 //     var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25566);
 //     var smp = new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3").acceptEula().port(25567);
