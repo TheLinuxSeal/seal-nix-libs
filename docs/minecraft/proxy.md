@@ -99,18 +99,23 @@ minecraft-survival`.
 
 ```java
 .server(lobby)                              // a Server of the configuration
+.server(survival, "smp")                    // the same, under another name on the proxy
 .server("creative", "10.0.0.5:25565")       // a name, and an address
 ```
 
 `.server(server)` gives a `Server` of the configuration, by its name, at `127.0.0.1:<its port>`,
 and sets it up [behind the proxy](#servers-behind-a-proxy).
 
-`.server(name, address)` gives a server this doesn't set up: on another machine, or one set up by hand,
-which must [take the proxy's forwarding](#a-server-set-up-by-hand) itself. The name is letters,
-digits, `-` and `_`, and not `try`; the address is `host:port` (`"10.0.0.5:25565"`,
-`"mc.example.com:25565"`, `"[2001:db8::5]:25565"`).
+`.server(server, name)` does the same, and the proxy calls it `name`: in `velocity.toml`, in
+`/server <name>`, and in `.tryServer()` and `.forcedHost()`, which must use that name. Its service and
+its folder keep the server's own name, as `minecraft-survival` and `/var/lib/minecraft/survival`.
 
-Each server has a name of its own. Players move between them with `/server <name>`.
+`.server(name, address)` gives a server this doesn't set up: on another machine, or one set up by hand,
+which must [take the proxy's forwarding](#a-server-set-up-by-hand) itself. The address is `host:port`
+(`"10.0.0.5:25565"`, `"mc.example.com:25565"`, `"[2001:db8::5]:25565"`).
+
+Each server has a name of its own on the proxy: letters, digits, `-` and `_`, and not `try`. Players
+move between them with `/server <name>`.
 
 ## The try list
 

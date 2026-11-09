@@ -36,6 +36,7 @@ class Proxy extends(Service<Proxy>) {
     List<string> serverNames = new List();
     List<string> serverAddresses = new List();   // empty for one given as a Server, at 127.0.0.1
     List<Server> behind = new List();        // the servers given as Servers
+    List<string> behindNames = new List();   // and what the proxy calls each
     List<string> tryNames = new List();
     List<string> hostNames = new List();
     List<string> hostServers = new List();
@@ -87,13 +88,20 @@ class Proxy extends(Service<Proxy>) {
     // A server it forwards to, configured here: it is set up behind the proxy, and the proxy's
     // install() installs it.
     public Proxy server(Server other) {
+        return server(other, other.name);
+    }
+
+    // That, under another name on the proxy, for /server, tryServer() and forcedHost(). Its service and
+    // its folder keep the server's own name.
+    public Proxy server(Server other, string serverName) {
         if (other.proxy != null && other.proxy != this) {
             throw new IllegalStateException("Minecraft server " + name + ": " + other.name + " is behind the proxy "
                 + other.proxy.name + " already: a server is behind one proxy");
         }
-        serverNames.add(other.name);
+        serverNames.add(serverName);
         serverAddresses.add("");
         behind.add(other);
+        behindNames.add(serverName);
         other.proxy = this;
         return this;
     }
@@ -162,8 +170,8 @@ class Proxy extends(Service<Proxy>) {
     string addressOf(int k) {
         string a = serverAddresses.get(k);
         if (a.length() > 0) { return a; }
-        for (Server b : behind) {
-            if (b.name == serverNames.get(k)) { return "127.0.0.1:" + b.listenPort(); }
+        for (int j = 0; j < behind.size(); j++) {
+            if (behindNames.get(j) == serverNames.get(k)) { return "127.0.0.1:" + behind.get(j).listenPort(); }
         }
         return a;
     }
@@ -230,6 +238,10 @@ class Proxy extends(Service<Proxy>) {
                 throw new IllegalArgumentException(them + " and the proxy both have port " + listenPort() + "; give one another");
             }
             for (int j = 0; j < k; j++) {
+                if (behind.get(j) == b) {
+                    throw new IllegalArgumentException(them + " is given to the proxy twice, as " + behindNames.get(j) + " and "
+                        + behindNames.get(k) + ": server(), once");
+                }
                 if (behind.get(j).listenPort() == b.listenPort()) {
                     throw new IllegalArgumentException(them + " and " + behind.get(j).name + " both have port " + b.listenPort()
                         + "; give one another");

@@ -70,7 +70,7 @@ And for the server: `two config files are "<path>"; give all its settings to one
 | `its forwarding secret is given twice: forwardingSecretFile() or generateSecretFile(), once` | Both on one proxy, or two different files. |
 | `generateSecretFile("<path>") is under <folder>, where the services can't read it` | The file would be out of the services' sight: `/home`, `/root`, `/tmp`, `/var/tmp`, `/run/user` or `/nix`. |
 | `generateSecretFile() makes a secret that <mode> forwarding doesn't use: MODERN and BUNGEEGUARD do` | `NONE` and `LEGACY` have no secret. |
-| `no server name "<name>": a name is letters, digits, - and _, and not try` | `server(name, address)` with another name. |
+| `no server name "<name>": a name is letters, digits, - and _, and not try` | `server(name, address)` or `server(server, name)` with another name. |
 | `two servers are named <name>` | Two of the proxy's servers have one name. |
 | `no address "<address>" for the server <name>: an address is host:port, as "10.0.0.5:25565"` | The address is empty, or has a character an address doesn't. |
 | `tryServer("<name>") names no server; server() gives them` | The try list names a server the proxy isn't given. |
@@ -84,6 +84,7 @@ These name the proxy, then the server: `Minecraft server proxy: lobby ...`.
 | Error | Means |
 | --- | --- |
 | `has the proxy's own name` | A server named as its proxy is. |
+| `is given to the proxy twice, as <name> and <name>: server(), once` | One `Server` given to `.server()` under two names. |
 | `is behind the proxy <proxy> already: a server is behind one proxy` | The server is given to two proxies. This one names the second proxy. |
 | `is installed on its own already: the proxy's install() installs it, so leave out its own` | The server's own `install()` came before its proxy's: leave it out. |
 | `and the proxy both have port <port>; give one another` | The server and its proxy have one port. |

@@ -71,6 +71,10 @@
           assert lib.hasInfix "PROPERTIES=('online-mode=false' 'server-ip=127.0.0.1')" s.minecraft-lobby.preStart;
           assert lib.hasInfix ''try = ["lobby", "smp"]'' s.minecraft-proxy.preStart;
           assert lib.hasInfix ''"smp.example.com" = ["smp"]'' s.minecraft-proxy.preStart;
+          assert lib.hasInfix ''hub = "127.0.0.1:25568"'' s.minecraft-proxy.preStart;
+          assert lib.hasInfix ''"hub.example.com" = ["hub"]'' s.minecraft-proxy.preStart;
+          assert lib.elem "minecraft-proxy.service" s.minecraft-hub-server.after;
+          assert !(s ? minecraft-hub);
           pkgs.runCommand "minecraft" { } ''
             head -1 ${module} | grep -q "from Main.seal, sealnix/libs/minecraft/ConfigFile.seal, sealnix/libs/minecraft/Forwarding.seal, sealnix/libs/minecraft/Loader.seal, sealnix/libs/minecraft/Proxy.seal, sealnix/libs/minecraft/Server.seal, sealnix/libs/minecraft/Service.seal:"
             test "$(grep -c 'ps.json5' ${module})" = 1

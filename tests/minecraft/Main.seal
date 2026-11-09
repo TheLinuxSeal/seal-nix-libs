@@ -34,14 +34,17 @@ class Main {
         var smp = new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3")
             .acceptEula().modrinthMod("lithium");
         smp.port(25567);                                     // a server given to the proxy can still change
+        var hub = new Server("hub-server").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25568);
 
         new Proxy("proxy")
             .server(lobby)
             .server(smp)
+            .server(hub, "hub")                              // under another name on the proxy
             .server("creative", "10.0.0.5:25565")
             .tryServer("lobby")
             .tryServer("smp")
             .forcedHost("smp.example.com", "smp")
+            .forcedHost("hub.example.com", "hub")
             .plugin("luckperms")
             .install();
     }
