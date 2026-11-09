@@ -36,6 +36,8 @@ class Main {
         smp.port(25567);                                     // a server given to the proxy can still change
         var hub = new Server("hub-server").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25568);
         var neo = new Server("neo").loader(Loader.NEOFORGE).minecraftVersion("1.21.11").acceptEula().port(25569)
+            .modrinthMod("CFX9ftUJ")                         // by its project ID
+            .modrinthMod("RT18TcxA", "1.2.5")                // NeoVelocity itself, by its ID, so it isn't added again
             .config(new ConfigFile("config/neovelocity-common.toml").set("compatibility.login-custom-packet-catchall", false));
         var plain = new Server("neo-plain").loader(Loader.NEOFORGE).minecraftVersion("1.21.11").acceptEula().port(25571);
 

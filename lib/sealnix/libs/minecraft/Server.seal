@@ -402,12 +402,17 @@ class Server extends(Service<Server>) {
     private<Service> List<string> modSpecs() {
         List<Service.Project> list = copyOf(mods);
         if (loaderType == Loader.FABRIC && proxy != null && proxy.forwardingMode == Forwarding.MODERN) {
-            for (string slug : ["fabric-api", "fabricproxy-lite"]) {
-                if (!names(list, slug)) { list.add(new Service.Project(slug, "", false)); }
-            }
+            addUnlessGiven(list, "fabric-api", "P7dR8mSH");
+            addUnlessGiven(list, "fabricproxy-lite", "8dI2tmqs");
         }
-        if (neoVelocity() && !names(list, "neovelocity")) { list.add(new Service.Project("neovelocity", "", false)); }
+        if (neoVelocity()) { addUnlessGiven(list, "neovelocity", "RT18TcxA"); }
         return specs(list);
+    }
+
+    // A Modrinth project, unless it is among those given, by its slug or its ID: two versions of one mod
+    // would stop the server.
+    static void addUnlessGiven(List<Service.Project> projects, string slug, string id) {
+        if (!names(projects, slug) && !names(projects, id)) { projects.add(new Service.Project(slug, "", false)); }
     }
 
     // server.properties' lines: behind a proxy, offline (the proxy signs players in) on 127.0.0.1;

@@ -76,6 +76,7 @@
           assert lib.elem "minecraft-proxy.service" s.minecraft-hub-server.after;
           assert !(s ? minecraft-hub);
           assert lib.hasInfix "MODS=('neovelocity')" s.minecraft-neo-plain.preStart;
+          assert lib.hasInfix "MODS=('CFX9ftUJ' 'RT18TcxA@1.2.5')" s.minecraft-neo.preStart;
           assert lib.hasInfix ''{"path":"config/neovelocity-common.toml","format":"toml","text":null,"set":[{"key":["forwarding","forwarding-secret"],"value":"/var/lib/minecraft/proxy/forwarding.secret"},{"key":["forwarding","forwarding-secret-type"],"value":"FILE"}]}'' s.minecraft-neo-plain.preStart;
           assert lib.hasInfix ''{"key":["forwarding","forwarding-secret-type"],"value":"FILE"},{"key":["compatibility","login-custom-packet-catchall"],"value":false}'' s.minecraft-neo.preStart;
           assert lib.hasInfix "SECRET='/var/lib/minecraft/proxy/forwarding.secret'" s.minecraft-neo.script;
