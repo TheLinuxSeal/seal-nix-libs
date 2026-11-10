@@ -86,8 +86,13 @@ and a start never does. They are chosen again:
 - all of them, when the loader or the Minecraft version changes;
 - one, when its entry changes (a pin added, or changed) or its file is gone.
 
-A mod or plugin the configuration no longer names is removed at the restart that follows the rebuild,
-if this put it there. One put in `mods/` or `plugins/` by hand isn't, and is never touched.
+`mods/` is emptied at every start, and filled again from the Nix store: it holds the mods given, and
+nothing else. A mod no longer named is gone at the restart that follows the rebuild, and a jar put
+there by hand goes too. It isn't emptied while `minecraft.lock` lacks one of the server's mods, nor with
+`.autoUpdate()` or `"latest"`: then only the mods this put there go, as the configuration drops them.
+
+`plugins/` is never emptied, as plugins keep their own data in it (LuckPerms its database). A plugin
+no longer named goes, if this put it there; one put there by hand stays.
 
 Modrinth's and CurseForge's dependencies aren't followed: name every mod a mod needs. A server behind a Velocity proxy
 gets what its forwarding needs by itself: [Servers behind a proxy](proxy.md#servers-behind-a-proxy).
@@ -121,7 +126,7 @@ It works with an API key or without one, and an API key is the better way:
 | Goes through | CurseForge's API | CurseForge's website, whose file lists ask for no key |
 | A mod is given by | its slug or its project ID | its project ID alone, as the site can't look up a slug |
 | The file is checked against | CurseForge's sha1 (or md5) | its size alone: the site gives no hash |
-| An author who opted out of third-party downloads | stops the start, with a message: put the file in `mods/` by hand | can't be seen, and the file is downloaded |
+| An author who opted out of third-party downloads | stops the rebuild, with a message: such a mod can't be given with a key | can't be seen, and the file is downloaded |
 | It lasts | documented | the site's API is undocumented, and can change or refuse at any time |
 
 A key comes from CurseForge's [developer console](https://console.curseforge.com/).

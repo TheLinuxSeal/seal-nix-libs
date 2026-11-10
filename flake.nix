@@ -87,6 +87,8 @@
           assert s.minecraft-survival.environment ? DOWNLOADED;
           assert !(s.minecraft-fresh ? environment);
           assert lib.hasInfix "DOWNLOADED=\${DOWNLOADED:-}" s.minecraft-survival.preStart;
+          assert lib.hasInfix "FROM_NIX=1" s.minecraft-survival.preStart;
+          assert lib.hasInfix "FROM_NIX=0" s.minecraft-fresh.preStart;
           assert lib.hasInfix "MODS=('neovelocity')" s.minecraft-neo-plain.preStart;
           assert lib.hasInfix "MODS=('CFX9ftUJ' 'RT18TcxA@1.2.5')" s.minecraft-neo.preStart;
           assert lib.hasInfix ''{"path":"config/neovelocity-common.toml","format":"toml","text":null,"set":[{"key":["forwarding","forwarding-secret"],"value":"/var/lib/minecraft/proxy/forwarding.secret"},{"key":["forwarding","forwarding-secret-type"],"value":"FILE"}]}'' s.minecraft-neo-plain.preStart;

@@ -85,8 +85,9 @@ The service's `preStart` runs first, as `minecraft`, in the server's folder:
    Minecraft version or `loaderVersion`), or `autoUpdate()` is on, or there is none yet: it chooses
    the Minecraft version (for `"latest"`) and the loader's version, downloads it, and for Forge and
    NeoForge runs the installer.
-2. **The mods or plugins**, copied from the Nix store, as [the rebuild](#a-rebuild) downloaded them,
-   and the ones no longer named removed.
+2. **The mods or plugins**, from the Nix store, as [the rebuild](#a-rebuild) downloaded them: `mods/`
+   emptied and filled anew, and in `plugins/` the ones no longer named removed
+   ([Mods and plugins](servers.md#mods-and-plugins)).
 3. **The settings.** For a server: `eula.txt`, `server.properties`, and behind a proxy, its forwarding
    ([Servers behind a proxy](proxy.md#servers-behind-a-proxy)). For a proxy: its forwarding secret, if
    it makes it, and `velocity.toml` ([velocity.toml](proxy.md#velocitytoml)).

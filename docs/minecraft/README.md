@@ -93,6 +93,7 @@ builds; [Errors](errors.md) lists them all.
 - **Mod dependencies.** Modrinth's and CurseForge's dependencies aren't followed: name every mod a mod needs, as
   `fabric-api` for most Fabric mods. (A Fabric server behind a proxy gets `fabric-api` with
   FabricProxy-Lite.)
-- **Modpacks, datapacks, resource packs**, and mods from anywhere but Modrinth and CurseForge. A file put in `mods/`
-  or `plugins/` by hand is kept, and left alone.
+- **Modpacks, datapacks, resource packs**, and mods from anywhere but Modrinth and CurseForge. A file put in
+  `plugins/` by hand is kept, and left alone; `mods/` is [emptied at every start](servers.md#mods-and-plugins),
+  and holds the mods given alone.
 - **Backups.** The worlds are in `/var/lib/minecraft/<name>`; back that up as any folder.

@@ -293,6 +293,7 @@ abstract class Service<T> {
         b.append("BANS=").append(sh(bansJson())).append('\n');
         b.append("WHITELIST=").append(sh(whitelistJson())).append('\n');
         b.append("DOWNLOADED=${DOWNLOADED:-}\n");                  // what Nix downloaded, from minecraft.lock
+        b.append("FROM_NIX=").append(choosesAtStart() ? "0" : "1").append('\n');   // whether that's all its mods
         b.append(TOOLS).append(CHOOSE_LOADER).append(MOD_SOURCES).append(SYNC_ALL).append(SETTINGS);
         return b.toString();
     }
@@ -642,7 +643,7 @@ abstract class Service<T> {
           name=$(jq -r .fileName <<<"$file")
           label=$(jq -r .displayName <<<"$file")
           url=$(jq -r '.downloadUrl // empty' <<<"$file")
-          [ -n "$url" ] || fail "$project's author doesn't allow downloads through CurseForge's API: put it in mods/ by hand"
+          [ -n "$url" ] || fail "$project's author doesn't allow downloads through CurseForge's API: so it can't be given here"
           url=${url// /%20}
           algo=sha1
           sum=$(jq -r '[.hashes[]? | select(.algo == 1)][0].value // empty' <<<"$file")
@@ -685,6 +686,23 @@ abstract class Service<T> {
           local again=$AUTO_UPDATE
           if [ "$(cat "$made" 2>/dev/null)" != "$LOADER $MC" ]; then again=1; fi
           local spec slug pin old query versions v file name url algo sum label size
+          # mods/, when every mod is in the Nix store, is emptied, and filled anew from there, at every start:
+          # the mods given, and nothing else. Not plugins/, where plugins keep their own data.
+          if [ "$dir" = mods ] && [ "$FROM_NIX" = 1 ]; then
+            local whole=1
+            for spec in "$@"; do
+              name=""
+              if [ -n "$DOWNLOADED" ] && [ "$(cat "$DOWNLOADED/.seal-mc/mods.for" 2>/dev/null)" = "$LOADER $MC" ]; then
+                name=$(awk -F '\t' -v s="$spec" '$1 == s { print $2 }' "$DOWNLOADED/.seal-mc/mods.lock" 2>/dev/null || true)
+              fi
+              if [ -z "$name" ] || [ ! -f "$DOWNLOADED/mods/$name" ]; then whole=0; fi
+            done
+            if [ "$whole" = 1 ]; then
+              rm -rf -- mods
+              mkdir mods
+              : > "$lock"
+            fi
+          fi
           for spec in "$@"; do
             slug=${spec%%@*}
             pin=

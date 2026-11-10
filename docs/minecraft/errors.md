@@ -128,7 +128,7 @@ reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts wi
 | `<project> has no file for <loader> <version> on CurseForge` | The mod has no file for that loader and Minecraft version. | Another mod, or another version. |
 | `<project> has no file <file> for <loader> <version> on CurseForge` | No file of that name or display name for that loader and Minecraft version. | The whole file name, or its file ID. |
 | `CurseForge has no file <id> of <project>` | No file of that ID. | The file ID, as in the file's address. |
-| `<project>'s author doesn't allow downloads through CurseForge's API: put it in mods/ by hand` | With a key: the author has opted out. | Download it, and put it in `mods/`. |
+| `<project>'s author doesn't allow downloads through CurseForge's API, so it can't be given here` | With a key: the author has opted out. | Another mod. `mods/` is emptied at every start, so a jar put there by hand doesn't stay. |
 | `Modrinth has no project <slug>` | No project of that slug or ID. | The slug, as in the project's address. |
 | `<slug> has no version for <loader> <version> on Modrinth` | The project has nothing for that loader and Minecraft version. | Another mod, or another version. |
 | `<slug> has no version <version> for <loader> <version> on Modrinth` | The version given isn't one of the project's version numbers or IDs, or isn't for that loader and Minecraft version. | The whole version number, as the project's Versions tab on Modrinth shows it. |
