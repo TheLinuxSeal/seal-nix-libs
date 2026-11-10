@@ -1,0 +1,15 @@
+import sealnix.*;
+import sealnix.libs.minecraft.*;
+
+// minecraft.lock, beside this file, as Nix reads it: a server it has whole, one whose Minecraft version it
+// has another of, and one it has some of.
+class Main {
+    static void main() {
+        new Server("smp").loader(Loader.FABRIC).minecraftVersion("26.3").acceptEula()
+            .modrinthMod("lithium").modrinthMod("ferrite-core").install();
+        new Server("old").loader(Loader.FABRIC).minecraftVersion("26.2").acceptEula().port(25566)
+            .modrinthMod("lithium").install();
+        new Server("part").loader(Loader.PAPER).minecraftVersion("26.3").acceptEula().port(25567)
+            .plugin("luckperms").plugin("chunky").install();
+    }
+}

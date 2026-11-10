@@ -29,6 +29,54 @@ journalctl -u minecraft-survival -f           # the start, and the server's cons
 the others keep running. A server taken out of the configuration stops, and its service goes; its
 folder, with its worlds, stays.
 
+## A rebuild
+
+Each mod and plugin is in `minecraft.lock`, beside the configuration's `Main.seal`: its file, where it
+comes from, and its sha512. Nix downloads them from there, by that hash, as it builds the system, so
+they are in the Nix store, and a start copies them into the server's folder.
+
+The library's `nixos-rebuild` keeps the lock up to date. It takes the place of NixOS's own, and before
+running it, with the same arguments, it reads the configuration:
+
+- a mod or plugin it doesn't have yet is chosen, as [Servers](servers.md#mods-and-plugins) says;
+- one no longer named goes;
+- one already there stays as it is, unless its server's loader or Minecraft version changed: then
+  every one of that server's is chosen again.
+
+```sh
+sudo nixos-rebuild switch --flake .
+```
+
+A rebuild with nothing new asks no one, and needs no network for the lock. One that can't be had stops
+the rebuild there, before Nix builds anything, with the running system and the lock as they were:
+
+```
+minecraft survival: neovelocity has no version for neoforge 26.3 on Modrinth
+```
+
+A new `minecraft.lock` is added to git (`git add --intent-to-add`), as a flake sees only the files git
+knows of; commit it with the configuration. As root, under `sudo`, the file is the flake owner's. It
+is written for a flake on the machine: `--flake .`, a path, or `/etc/nixos/flake.nix`. A flake from
+elsewhere (`github:...`) is built with the lock it has.
+
+The first rebuild with this library installs its `nixos-rebuild`, and the lock is written from the
+next one. Until then, and for what the lock doesn't have, Nix says so, and the start downloads it:
+
+```
+evaluation warning: minecraft survival: its start will download lithium, which minecraft.lock doesn't have yet; ...
+```
+
+The start also downloads:
+
+- for `.autoUpdate()`, and a Minecraft version of `"latest"`: what to take is only known then;
+- a CurseForge mod whose API key isn't on the machine yet: a new secret, from sops-nix or agenix,
+  appears later in the same rebuild;
+- the server's jar and its loader, when they change: Forge's and NeoForge's installers are programs
+  to run.
+
+`nixos-rebuild switch --rollback` goes back to a system and its mods, from the Nix store, with no
+network.
+
 ## A start
 
 The service's `preStart` runs first, as `minecraft`, in the server's folder:
@@ -37,8 +85,8 @@ The service's `preStart` runs first, as `minecraft`, in the server's folder:
    Minecraft version or `loaderVersion`), or `autoUpdate()` is on, or there is none yet: it chooses
    the Minecraft version (for `"latest"`) and the loader's version, downloads it, and for Forge and
    NeoForge runs the installer.
-2. **The mods or plugins**, each chosen as [Servers](servers.md#mods-and-plugins) says, downloaded if
-   not there, and the ones no longer named removed.
+2. **The mods or plugins**, copied from the Nix store, as [the rebuild](#a-rebuild) downloaded them,
+   and the ones no longer named removed.
 3. **The settings.** For a server: `eula.txt`, `server.properties`, and behind a proxy, its forwarding
    ([Servers behind a proxy](proxy.md#servers-behind-a-proxy)). For a proxy: its forwarding secret, if
    it makes it, and `velocity.toml` ([velocity.toml](proxy.md#velocitytoml)).
@@ -68,6 +116,7 @@ network, unless `autoUpdate()` is on.
 
 A download goes to a `.part` file, and takes the file's place only once it is whole and checked; a
 failed one is tried three times, then the start fails, and the service tries again 10 seconds later.
+Nix downloads what the lock names itself, and checks each file against its sha512.
 The requests say who they are from, as Modrinth asks: `seal-nix-libs minecraft
 (github.com/TheLinuxSeal/seal-nix-libs)`.
 
@@ -94,8 +143,8 @@ The requests say who they are from, as Modrinth asks: `seal-nix-libs minecraft
     └── ops, bans, whitelist the players they named, for the same reason
 ```
 
-Deleting `.seal-mc/requested` chooses the loader again at the next start, and deleting `mods.for`
-(or `plugins.for`) every mod (or plugin). Deleting `.seal-mc` does both, and leaves the worlds.
+Deleting `.seal-mc/requested` chooses the loader again at the next start. Taking a mod out of
+`minecraft.lock` (or a server, or the whole file) chooses it again at the next rebuild.
 
 ## Commands and RCON
 
@@ -122,6 +171,9 @@ firewall, so an RCON client on the machine reaches it: `mcrcon -P 25575 -p <pass
 - **The forwarding secret** is never in the store: the proxy's own, and a generated one, is `0600`, a given one is the
   file it is, and the servers behind a proxy read it as they start. Paper writes it into its config,
   so those servers' folders are `0750`.
+- **Mods and plugins** are downloaded by Nix, and checked against the sha512 in `minecraft.lock`:
+  the same file every time, or none. The lock's own choices are checked as a start's would be
+  (Modrinth's sha512, CurseForge's sha1 or md5, or its size alone without a key).
 - **The sandbox**: each server runs as `minecraft`, can write only its own folder, and can't see
   `/home`.
 - **The downloads** are checked against the hashes their sources give (but Fabric's launcher, which

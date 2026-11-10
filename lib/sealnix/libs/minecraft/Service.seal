@@ -29,7 +29,7 @@ abstract class Service<T> {
     string heap = "2G";
     List<string> jvmArgs = new List();
     bit firewall = true;
-    bit updates = false;
+    private<Server> bit updates = false;
     private<Server, Proxy> List<Project> plugins = new List();
     private<Server> List<ConfigFile> configs = new List();
     Pkg customJdk = null;                    // null for the one the service needs
@@ -111,6 +111,7 @@ abstract class Service<T> {
     // What differs between a Server and a Proxy, which they say.
     private<Server, Proxy> string loaderId() { return ""; }          // the start's LOADER
     private<Server, Proxy> string mcVersion() { return "latest"; }   // the start's MC
+    private<Server, Proxy> bit choosesAtStart() { return updates; }  // its mods are chosen at each start, not in minecraft.lock
     private<Server, Proxy> string versionShown() { return ""; }      // in the service's description
     private<Server, Proxy> int defaultPort() { return 25565; }
     private<Server, Proxy> Pkg defaultJava() { return Packages.jdk25_headless; }
@@ -182,6 +183,12 @@ abstract class Service<T> {
         Config.systemd.services.get(unit).serviceConfig.set("ProtectSystem", "strict");
         Config.systemd.services.get(unit).serviceConfig.set("ProtectHome", true);
         Config.setRaw("systemd.services." + unit + ".path", "[ " + tools() + " ]");
+        // Its mods and plugins, from minecraft.lock, as Nix downloads them, unless a start chooses them.
+        if (!choosesAtStart() && (!modSpecs().isEmpty() || !plugins.isEmpty())) {
+            installLock();
+            Config.setRaw("system.build.minecraftRequests.minecraft-" + name, nix(lockRequest()));
+            Config.setRaw("systemd.services." + unit + ".environment.DOWNLOADED", "config.system.build.minecraftDownloads \"" + name + "\"");
+        }
 
         if (firewall && before == null) { Config.networking.firewall.allowedTCPPorts.add(listenPort()); }
     }
@@ -285,7 +292,50 @@ abstract class Service<T> {
         b.append("OPS=").append(sh(opsJson())).append('\n');
         b.append("BANS=").append(sh(bansJson())).append('\n');
         b.append("WHITELIST=").append(sh(whitelistJson())).append('\n');
-        b.append(PREPARE);
+        b.append("DOWNLOADED=${DOWNLOADED:-}\n");                  // what Nix downloaded, from minecraft.lock
+        b.append(TOOLS).append(CHOOSE_LOADER).append(MOD_SOURCES).append(SYNC_ALL).append(SETTINGS);
+        return b.toString();
+    }
+
+    // What minecraft.lock needs to know of it, as JSON: its loader, Minecraft version, mods, plugins, and
+    // CurseForge key's file.
+    string lockRequest() {
+        return "{\"loader\":" + ConfigFile.quote(loaderId()) + ",\"minecraft\":" + ConfigFile.quote(mcVersion())
+            + ",\"mods\":" + jsonList(modSpecs()) + ",\"plugins\":" + jsonList(specs(plugins))
+            + ",\"curseforgeKey\":" + ConfigFile.quote(curseforgeKeyFile()) + "}";
+    }
+
+    static string jsonList(List<string> items) {
+        StringBuilder b = new StringBuilder();
+        for (string s : items) { b.append(b.length() > 0 ? "," : "").append(ConfigFile.quote(s)); }
+        return "[" + b.toString() + "]";
+    }
+
+    static bit lockInstalled = false;
+
+    // minecraft.lock, once for every server: where it is, what Nix makes of it, and the nixos-rebuild that
+    // keeps it, which takes the place of NixOS's own in the system's commands, and runs it.
+    static void installLock() {
+        if (lockInstalled) { return; }
+        lockInstalled = true;
+        Config.setRaw("system.build.minecraftLockFile", LOCK_FILE);
+        Config.setRaw("system.build.minecraftDownloads", DOWNLOADS);
+        Config.environment.systemPackages.add(new Pkg("(lib.hiPrio (pkgs.writeShellScriptBin \"nixos-rebuild\" (\"export PATH=${lib.makeBinPath [ "
+            + Packages.curl + " " + Packages.jq + " " + Packages.coreutils + " " + Packages.gawk + " " + Packages.gnugrep + " "
+            + Packages.diffutils + " " + Packages.git + " " + Packages.util_linux + " config.nix.package ]}:$PATH\\n"
+            + "REAL=${config.system.build.nixos-rebuild}/bin/nixos-rebuild\\n\" + " + nix(REBUILD + TOOLS + MOD_SOURCES + LOCKING) + ")))"));
+    }
+
+    // A string, as Nix code.
+    static string nix(string s) {
+        StringBuilder b = new StringBuilder();
+        b.append('"');
+        for (int k = 0; k < s.length(); k++) {
+            char c = s.charAt(k);
+            if (c == '"' || c == '\\' || c == '$') { b.append('\\'); }
+            b.append(c);
+        }
+        b.append('"');
         return b.toString();
     }
 
@@ -355,8 +405,9 @@ abstract class Service<T> {
         return b.toString();
     }
 
-    // What preStart runs, after the server's own settings (LOADER, MC, MODS...): bash, with curl and jq.
-    static string PREPARE = """
+    // What preStart runs, after the server's own settings (LOADER, MC, MODS...), in its parts: bash, with
+    // curl and jq. A rebuild runs TOOLS, MOD_SOURCES and SYNC_ALL alone.
+    static string TOOLS = """
         UA='seal-nix-libs minecraft (github.com/TheLinuxSeal/seal-nix-libs)'
         MOJANG=https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
         mkdir -p .seal-mc
@@ -379,6 +430,9 @@ abstract class Service<T> {
           mv -f "$2.part" "$2"
         }
 
+        """;
+
+    static string CHOOSE_LOADER = """
         # A Maven artifact's sha1, when the repository has one.
         mavensha1() { get "$1.sha1" 2>/dev/null | cut -d ' ' -f 1 || true; }
 
@@ -477,6 +531,9 @@ abstract class Service<T> {
         fi
         MC=$(cat .seal-mc/minecraft)
 
+        """;
+
+    static string MOD_SOURCES = """
         # CurseForge's API, with the key: from a file, to stay out of the Nix store, and to curl through a
         # file descriptor, to stay off a command line other users can see.
         CURSEFORGE_API=https://api.curseforge.com/v1
@@ -595,6 +652,25 @@ abstract class Service<T> {
           fi
         }
 
+        # modrinth SLUG PIN LOADERS GAMES: the file to take from Modrinth, into sync's name, url, algo, sum
+        # and label: the version pinned, or the newest release, or else the newest of any kind, for those
+        # loaders and Minecraft versions (GAMES a JSON list, or null for any).
+        modrinth() {
+          local slug=$1 pin=$2 query versions v file
+          query="loaders=$(jq -rn --argjson v "$3" '$v | tojson | @uri')"
+          if [ "$4" != null ]; then query="$query&game_versions=$(jq -rn --argjson v "$4" '$v | tojson | @uri')"; fi
+          versions=$(get "https://api.modrinth.com/v2/project/$slug/version?$query") || fail "Modrinth has no project $slug"
+          v=$(jq -c --arg pin "$pin" '(if $pin != "" then map(select(.version_number == $pin or .id == $pin))
+            else map(select(.version_type == "release")) + . end) | .[0] // empty' <<<"$versions")
+          [ -n "$v" ] || fail "$slug has no version${pin:+ $pin} for $LOADER $MC on Modrinth"
+          file=$(jq -c '(.files | map(select(.primary))) + .files | .[0]' <<<"$v")
+          name=$(jq -r .filename <<<"$file")
+          url=$(jq -r .url <<<"$file")
+          algo=sha512
+          sum=$(jq -r .hashes.sha512 <<<"$file")
+          label=$(jq -r .version_number <<<"$v")
+        }
+
         # sync DIR LOADERS GAMES SPEC...: the Modrinth projects named, in DIR. A file this put there
         # before, which no project names now, goes; LOADERS and GAMES are JSON lists, or GAMES null.
         # The files chosen are kept, unless autoUpdate, or the loader or Minecraft version they were
@@ -614,6 +690,21 @@ abstract class Service<T> {
             pin=
             if [ "$spec" != "$slug" ]; then pin=${spec#*@}; fi
             old=$(awk -F '\\t' -v s="$spec" '$1 == s { print $2 }' "$lock")
+            # What Nix downloaded, by minecraft.lock, is copied in, with no need of the network.
+            if [ -n "$DOWNLOADED" ] && [ "$(cat "$DOWNLOADED/.seal-mc/$dir.for" 2>/dev/null)" = "$LOADER $MC" ]; then
+              name=$(awk -F '\\t' -v s="$spec" '$1 == s { print $2 }' "$DOWNLOADED/.seal-mc/$dir.lock" 2>/dev/null || true)
+              if [ -n "$name" ] && [ -f "$DOWNLOADED/$dir/$name" ]; then
+                if [ ! -f "$dir/$name" ]; then
+                  cp -f -- "$DOWNLOADED/$dir/$name" "$dir/$name.part"
+                  chmod 644 "$dir/$name.part"
+                  mv -f "$dir/$name.part" "$dir/$name"
+                  log "$dir: $name, as Nix downloaded it"
+                fi
+                if [ -n "$old" ] && [ "$old" != "$name" ]; then rm -f "$dir/$old"; fi
+                printf '%s\\t%s\\n' "$spec" "$name" >> "$next"
+                continue
+              fi
+            fi
             if [ "$again" != 1 ] && [ -n "$old" ] && [ -f "$dir/$old" ]; then
               printf '%s\\t%s\\n' "$spec" "$old" >> "$next"
               continue
@@ -622,18 +713,7 @@ abstract class Service<T> {
             if [ "$spec" != "${spec#curseforge:}" ]; then
               curseforge "${spec#curseforge:}"
             else
-              query="loaders=$(jq -rn --argjson v "$loaders" '$v | tojson | @uri')"
-              if [ "$games" != null ]; then query="$query&game_versions=$(jq -rn --argjson v "$games" '$v | tojson | @uri')"; fi
-              versions=$(get "https://api.modrinth.com/v2/project/$slug/version?$query") || fail "Modrinth has no project $slug"
-              v=$(jq -c --arg pin "$pin" '(if $pin != "" then map(select(.version_number == $pin or .id == $pin))
-                else map(select(.version_type == "release")) + . end) | .[0] // empty' <<<"$versions")
-              [ -n "$v" ] || fail "$slug has no version${pin:+ $pin} for $LOADER $MC on Modrinth"
-              file=$(jq -c '(.files | map(select(.primary))) + .files | .[0]' <<<"$v")
-              name=$(jq -r .filename <<<"$file")
-              url=$(jq -r .url <<<"$file")
-              algo=sha512
-              sum=$(jq -r .hashes.sha512 <<<"$file")
-              label=$(jq -r .version_number <<<"$v")
+              modrinth "$slug" "$pin" "$loaders" "$games"
             fi
             case "$name" in */* | . | ..) fail "$slug's file has no usable name: $name" ;; esac
             if [ ! -f "$dir/$name" ]; then
@@ -653,6 +733,181 @@ abstract class Service<T> {
           echo "$LOADER $MC" > "$made"
         }
 
+        """;
+
+    // Where minecraft.lock is: beside the Seal configuration, as a path in the Nix store, for the wrapper to find in
+    // the flake.
+    static string LOCK_FILE = """
+        toString ((if builtins.readFileType config.seal-nix.src == "directory" then config.seal-nix.src
+          else dirOf config.seal-nix.src) + "/minecraft.lock")
+        """;
+
+    // A server's mods and plugins as minecraft.lock has them, each downloaded by Nix by its sha512, in a folder
+    // as sync reads it: mods/ and plugins/, and .seal-mc's lock and for. What the lock doesn't have (yet) is
+    // left to the start, with a warning; a lock for another loader or Minecraft version has nothing.
+    static string DOWNLOADS = """
+        name:
+        let
+          src = config.seal-nix.src;
+          file = (if builtins.readFileType src == "directory" then src else dirOf src) + "/minecraft.lock";
+          lock = if builtins.pathExists file then builtins.fromJSON (builtins.readFile file) else { };
+          want = builtins.fromJSON config.system.build.minecraftRequests."minecraft-${name}";
+          got = lock.servers.${name} or { };
+          same = (got.loader or null) == want.loader && (got.minecraft or null) == want.minecraft;
+          entry = kind: spec: if same then got.${kind}.${spec} or null else null;
+          missing = lib.filter (spec: entry "mods" spec == null) want.mods
+            ++ lib.filter (spec: entry "plugins" spec == null) want.plugins;
+          links = kind: lib.concatMapStrings (spec: let e = entry kind spec; in lib.optionalString (e != null) ''
+            ln -s ${pkgs.fetchurl { name = "minecraft-file"; inherit (e) url sha512; }} "$out"/${kind}/${lib.escapeShellArg e.file}
+            printf '%s\\t%s\\n' ${lib.escapeShellArg spec} ${lib.escapeShellArg e.file} >> "$out"/.seal-mc/${kind}.lock
+          '') want.${kind};
+          made = lib.escapeShellArg "${want.loader} ${want.minecraft}";
+          warned = if missing == [ ] then (x: x)
+            else lib.warn ("minecraft ${name}: its start will download ${lib.concatStringsSep ", " missing}, which "
+              + "minecraft.lock doesn't have yet; this library's nixos-rebuild writes it, from the rebuild after the one that installs it");
+        in
+        warned (pkgs.runCommandLocal "minecraft-${name}-downloads" { } (''
+          mkdir -p "$out"/mods "$out"/plugins "$out"/.seal-mc
+          touch "$out"/.seal-mc/mods.lock "$out"/.seal-mc/plugins.lock
+          echo ${made} > "$out"/.seal-mc/mods.for
+          echo ${made} > "$out"/.seal-mc/plugins.for
+        '' + links "mods" + links "plugins"))
+        """;
+
+    // This library's nixos-rebuild, before NixOS's own (REAL), which it runs after with the same arguments: from
+    // a local flake's configuration, minecraft.lock. It runs TOOLS, MOD_SOURCES and LOCKING after this.
+    static string REBUILD = """
+        set -euo pipefail
+        action="" flake="" rollback=0
+        args=("$@")
+        for ((k = 0; k < ${#args[@]}; k++)); do
+          case "${args[k]}" in
+            switch | boot | test | build | dry-build | dry-activate | build-vm | build-vm-with-bootloader | build-image)
+              if [ -z "$action" ]; then action=${args[k]}; fi ;;
+            --rollback) rollback=1 ;;
+            --flake) flake=${args[k + 1]:-} ;;
+            --flake=*) flake=${args[k]#--flake=} ;;
+            --no-flake) flake=- ;;
+          esac
+        done
+        if [ -z "$action" ] || [ "$rollback" = 1 ] || [ "$flake" = - ]; then exec "$REAL" "$@"; fi
+        if [ -z "$flake" ]; then
+          if [ ! -e /etc/nixos/flake.nix ]; then exec "$REAL" "$@"; fi
+          flake=$(dirname -- "$(readlink -f /etc/nixos/flake.nix)")
+        fi
+        host=$(cat /proc/sys/kernel/hostname)
+        case "$flake" in *'#'*) host=${flake#*#}; flake=${flake%%#*} ;; esac
+        dir=${flake#path:}
+        dir=${dir#git+file://}
+        # A flake elsewhere, on GitHub say, has its minecraft.lock as it is.
+        if [ ! -f "$dir/flake.nix" ]; then exec "$REAL" "$@"; fi
+        dir=$(cd -- "$dir" && pwd)
+        # The flake's owner's, for git, which won't work in another's repository, and for minecraft.lock.
+        owner=$(stat -c %U "$dir")
+        as() { if [ "$(id -u)" = 0 ] && [ "$owner" != root ]; then runuser -u "$owner" -- "$@"; else "$@"; fi; }
+        evaluate() { nix --extra-experimental-features 'nix-command flakes' "$@" 2>/dev/null; }
+        at="$dir#nixosConfigurations.\\"$host\\".config.system.build"
+        # A configuration that doesn't build, or has no servers that need minecraft.lock, goes to the real one.
+        requests=$(evaluate eval --json "$at.minecraftRequests") || exec "$REAL" "$@"
+        stored=$(evaluate eval --raw "$at.minecraftLockFile") || exec "$REAL" "$@"
+        root=$(evaluate flake metadata --json "$dir" | jq -r .path) || exec "$REAL" "$@"
+        rel=${stored#"$root"/}
+        if [ "$rel" = "$stored" ]; then
+          echo "minecraft: $stored isn't in $dir's flake, so it stays as it is" >&2
+          exec "$REAL" "$@"
+        fi
+        top=$dir
+        if as git -C "$dir" rev-parse --show-toplevel > /dev/null 2>&1; then top=$(as git -C "$dir" rev-parse --show-toplevel); fi
+        LOCKFILE=$top/$rel
+        here=$PWD
+        work=$(mktemp -d)
+        trap 'rm -rf "$work"' EXIT
+        cd "$work"
+        """;
+
+    // minecraft.lock: for each server, its loader and Minecraft version, and for each mod and plugin its file,
+    // where Nix downloads it, and its sha512. A mod the configuration no longer names goes, one it names stays
+    // as it is, and a new one is chosen, as a start would; a server whose loader or version changed has every
+    // one chosen again. One that can't be had stops the rebuild here, before Nix is asked anything.
+    static string LOCKING = """
+        old='{}'
+        if [ -s "$LOCKFILE" ]; then old=$(jq -c . "$LOCKFILE") || fail "$LOCKFILE can't be read: mend it, or delete it"; fi
+        new='{"servers":{}}'
+        while IFS= read -r one; do
+          NAME=$(jq -r .name <<<"$one")
+          LOADER=$(jq -r .want.loader <<<"$one")
+          MC=$(jq -r .want.minecraft <<<"$one")
+          CURSEFORGE_KEY=$(jq -r .want.curseforgeKey <<<"$one")
+          log() { echo "minecraft $NAME: $*" >&2; }
+          was=$(jq -c --arg n "$NAME" '.servers[$n] // {}' <<<"$old")
+          again=0
+          if [ "$(jq -r '"\\(.loader) \\(.minecraft)"' <<<"$was")" != "$LOADER $MC" ]; then again=1; fi
+          entry=$(jq -cn --arg l "$LOADER" --arg m "$MC" '{loader: $l, minecraft: $m, mods: {}, plugins: {}}')
+          games=$(jq -cn --arg v "$MC" '[$v]')
+          for kind in mods plugins; do
+            case "$LOADER:$kind" in
+              fabric:mods | forge:mods | neoforge:mods) loaders=$(jq -cn --arg l "$LOADER" '[$l]'); versions=$games ;;
+              paper:plugins) loaders='["paper","spigot","bukkit"]'; versions=$games ;;
+              velocity:plugins) loaders='["velocity"]'; versions=null ;;
+              *) continue ;;
+            esac
+            while IFS= read -r spec; do
+              kept=$(jq -c --arg k "$kind" --arg s "$spec" '.[$k][$s] // empty' <<<"$was")
+              if [ "$again" = 0 ] && [ -n "$kept" ]; then
+                entry=$(jq -c --arg k "$kind" --arg s "$spec" --argjson e "$kept" '.[$k][$s] = $e' <<<"$entry")
+                continue
+              fi
+              slug=${spec%%@*}
+              pin=
+              if [ "$spec" != "$slug" ]; then pin=${spec#*@}; fi
+              size=""
+              if [ "$spec" != "${spec#curseforge:}" ]; then
+                # A key a secrets manager puts in place later in this first rebuild: the start downloads this one.
+                if [ -n "$CURSEFORGE_KEY" ] && [ ! -r "$CURSEFORGE_KEY" ]; then
+                  log "${slug#curseforge:}: no API key to read in $CURSEFORGE_KEY yet, so the server's start will download it"
+                  continue
+                fi
+                curseforge "${spec#curseforge:}"
+              else
+                modrinth "$slug" "$pin" "$loaders" "$versions"
+              fi
+              case "$name" in "" | */* | . | .. | *$'\\t'* | *$'\\n'*) fail "$slug's file has no usable name: $name" ;; esac
+              # CurseForge gives a sha1 or md5, or nothing: the file, once, checked as a start would, for its
+              # sha512, and for the address it comes from, past CurseForge's site.
+              if [ "$algo" != sha512 ] || [ -z "$sum" ]; then
+                rm -f file
+                url=$(get -o file -w '%{url_effective}' "$url") || fail "can't download $url"
+                if [ -n "$sum" ] && [ "$("${algo}sum" file | cut -d ' ' -f 1)" != "$sum" ]; then fail "$url: the download's $algo isn't $sum"; fi
+                if [ -n "$size" ] && [ "$(stat -c %s file)" != "$size" ]; then fail "$url: the download isn't the $size bytes it should be"; fi
+                sum=$(sha512sum file | cut -d ' ' -f 1)
+              fi
+              log "$kind: $slug $label"
+              entry=$(jq -c --arg k "$kind" --arg s "$spec" --arg f "$name" --arg u "$url" --arg h "$sum" \\
+                '.[$k][$s] = {file: $f, url: $u, sha512: $h}' <<<"$entry")
+            done < <(jq -r --arg k "$kind" '.want[$k][]' <<<"$one")
+          done
+          new=$(jq -c --arg n "$NAME" --argjson e "$entry" '.servers[$n] = $e' <<<"$new")
+        done < <(jq -c 'to_entries[] | {name: (.key | ltrimstr("minecraft-")), want: (.value | fromjson)}' <<<"$requests")
+        jq -S . <<<"$new" > lock
+        if [ ! -f "$LOCKFILE" ] || ! cmp -s lock "$LOCKFILE"; then
+          cp lock "$LOCKFILE.next"
+          mv -f "$LOCKFILE.next" "$LOCKFILE"
+          if [ "$(id -u)" = 0 ]; then chown "$owner:$(stat -c %G "$dir")" "$LOCKFILE"; fi
+          echo "minecraft: wrote $LOCKFILE" >&2
+        fi
+        # A flake sees only the files git knows of.
+        if [ "$top" != "$dir" ] || as git -C "$dir" rev-parse > /dev/null 2>&1; then
+          if ! as git -C "$top" ls-files --error-unmatch -- "$rel" > /dev/null 2>&1; then
+            as git -C "$top" add --intent-to-add -- "$rel"
+          fi
+        fi
+        cd "$here"
+        rm -rf "$work"
+        trap - EXIT
+        exec "$REAL" "$@"
+        """;
+
+    static string SYNC_ALL = """
         games=$(jq -cn --arg v "$MC" '[$v]')
         case "$LOADER" in
           fabric | forge | neoforge) sync mods "$(jq -cn --arg l "$LOADER" '[$l]')" "$games" "${MODS[@]}" ;;
@@ -660,6 +915,9 @@ abstract class Service<T> {
           velocity) sync plugins '["velocity"]' null "${PLUGINS[@]}" ;;
         esac
 
+        """;
+
+    static string SETTINGS = """
         # The port, and what else the configuration sets. For Velocity, velocity.toml: its bind, its
         # forwarding, and, when the configuration names servers, its [servers] and [forced-hosts].
         if [ "$LOADER" = velocity ]; then

@@ -98,6 +98,14 @@ installs it: leave out <name>'s own`, when its own `install()` comes after it is
 
 ## When a server starts
 
+A mod or plugin that can't be had [stops `nixos-rebuild`](running.md#a-rebuild) before Nix builds anything,
+with the running system as it was: `minecraft <name>:` and one of the reasons below. Fix the reason and
+rebuild. `minecraft.lock can't be read: mend it, or delete it` is a lock that isn't JSON any more,
+from a hand's edit or a merge.
+
+Nix's own `hash mismatch in fixed-output derivation` for a mod is a file that is no longer what
+`minecraft.lock` says: its author replaced it. Take its entry out of the lock, and rebuild.
+
 A start that fails leaves the server stopped, and the service tries again 10 seconds later. The
 reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts with `minecraft:`:
 

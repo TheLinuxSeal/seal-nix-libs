@@ -28,6 +28,9 @@ class Main {
             .whitelist("friend", "BBBBBBBBCCCC4DDD8EEEFFFFFFFFFFFF")
             .install();
 
+        new Server("fresh").loader(Loader.FABRIC).minecraftVersion("latest").acceptEula().port(25572)
+            .openFirewall(false).modrinthMod("lithium").install();    // its version is chosen at its start, and so its mods
+
         var lobby = new Server("lobby").loader(Loader.PAPER).minecraftVersion("26.3")
             .acceptEula().port(25566).plugin("luckperms", "v5.5.71-bukkit")
             .config(new ConfigFile("plugins/LuckPerms/config.yml").set("server", "lobby"));

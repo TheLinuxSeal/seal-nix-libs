@@ -1,0 +1,29 @@
+{
+  "servers": {
+    "old": {
+      "loader": "fabric",
+      "minecraft": "26.3",
+      "mods": {
+        "lithium": { "file": "lithium-fabric-0.26.3.jar", "sha512": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "url": "https://cdn.modrinth.com/data/gvQqBUqZ/versions/x/lithium-fabric-0.26.3.jar" }
+      },
+      "plugins": {}
+    },
+    "part": {
+      "loader": "paper",
+      "minecraft": "26.3",
+      "mods": {},
+      "plugins": {
+        "luckperms": { "file": "LuckPerms-Bukkit 5.5.jar", "sha512": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "url": "https://cdn.modrinth.com/data/Vebnzrzj/versions/y/LuckPerms-Bukkit-5.5.jar" }
+      }
+    },
+    "smp": {
+      "loader": "fabric",
+      "minecraft": "26.3",
+      "mods": {
+        "ferrite-core": { "file": "ferritecore-8.0-fabric.jar", "sha512": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "url": "https://cdn.modrinth.com/data/uXXizFIs/versions/z/ferritecore-8.0-fabric.jar" },
+        "lithium": { "file": "lithium-fabric-0.26.3.jar", "sha512": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "url": "https://cdn.modrinth.com/data/gvQqBUqZ/versions/x/lithium-fabric-0.26.3.jar" }
+      },
+      "plugins": {}
+    }
+  }
+}

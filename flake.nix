@@ -43,6 +43,8 @@
             set = settings module;
             s = set.systemd.services;
             parse = name: text: "bash -n ${pkgs.writeText name text}\n";
+            # what minecraft.lock is asked to have, for each server
+            want = name: builtins.fromJSON set.system.build.minecraftRequests."minecraft-${name}";
           in
           assert set.networking.firewall.allowedTCPPorts == [ 25565 25577 ];
           assert s.minecraft-lobby.serviceConfig.StateDirectoryMode == "0750";
@@ -75,6 +77,16 @@
           assert lib.hasInfix ''"hub.example.com" = ["hub"]'' s.minecraft-proxy.preStart;
           assert lib.elem "minecraft-proxy.service" s.minecraft-hub-server.after;
           assert !(s ? minecraft-hub);
+          assert (want "survival").mods == [ "fabric-api" "lithium@mc26.3-0.26.3-fabric" "curseforge:appleskin" "curseforge:jei@jei-26.3-fabric-31.17.0.109.jar" ];
+          assert (want "survival").minecraft == "26.3" && (want "survival").loader == "fabric";
+          assert (want "survival").curseforgeKey == "/run/secrets/curseforge";
+          assert (want "smp").mods == [ "lithium" "fabric-api" "fabricproxy-lite" ];
+          assert (want "proxy").plugins == [ "luckperms" ] && (want "proxy").loader == "velocity";
+          assert !(set.system.build.minecraftRequests ? minecraft-fresh);         # "latest": its start chooses
+          assert !(set.system.build.minecraftRequests ? minecraft-hub-server);    # nothing to download
+          assert s.minecraft-survival.environment ? DOWNLOADED;
+          assert !(s.minecraft-fresh ? environment);
+          assert lib.hasInfix "DOWNLOADED=\${DOWNLOADED:-}" s.minecraft-survival.preStart;
           assert lib.hasInfix "MODS=('neovelocity')" s.minecraft-neo-plain.preStart;
           assert lib.hasInfix "MODS=('CFX9ftUJ' 'RT18TcxA@1.2.5')" s.minecraft-neo.preStart;
           assert lib.hasInfix ''{"path":"config/neovelocity-common.toml","format":"toml","text":null,"set":[{"key":["forwarding","forwarding-secret"],"value":"/var/lib/minecraft/proxy/forwarding.secret"},{"key":["forwarding","forwarding-secret-type"],"value":"FILE"}]}'' s.minecraft-neo-plain.preStart;
@@ -105,6 +117,37 @@
           assert lib.hasInfix "SECRET='${file}'" s.minecraft-proxy.preStart;
           assert lib.hasInfix "SECRET='${file}'" s.minecraft-lobby.script;
           pkgs.runCommand "minecraft-secret" { } "bash -n ${pkgs.writeText "secret" script.text}; touch $out";
+
+        # minecraft.lock, as Nix reads it (tests/minecraft-lock), and this library's nixos-rebuild, read by bash
+        minecraft-lock =
+          let
+            src = ./tests/minecraft-lock/Main.seal;
+            module = generate system src;
+            system' = import module {
+              inherit lib pkgs;
+              config = {
+                seal-nix.src = src;
+                system.build = system'.system.build // { nixos-rebuild = pkgs.nixos-rebuild; };
+                nix.package = pkgs.nix;
+              };
+            };
+            downloads = name: (system'.system.build.minecraftDownloads name).buildCommand;
+            smp = downloads "smp";
+            part = downloads "part";
+            rebuild = lib.head system'.environment.systemPackages;
+          in
+          assert lib.hasInfix "/mods/lithium-fabric-0.26.3.jar" smp && lib.hasInfix "/mods/ferritecore-8.0-fabric.jar" smp;
+          assert lib.hasInfix "printf '%s\\t%s\\n' lithium lithium-fabric-0.26.3.jar" smp;
+          assert lib.hasInfix "echo 'fabric 26.3' > \"$out\"/.seal-mc/mods.for" smp;
+          assert !(lib.hasInfix "ln -s" (downloads "old"));                    # another Minecraft version's
+          assert lib.hasInfix "/plugins/'LuckPerms-Bukkit 5.5.jar'" part && !(lib.hasInfix "chunky" part);
+          assert system'.systemd.services.minecraft-smp.environment ? DOWNLOADED;
+          pkgs.runCommand "minecraft-lock" { } ''
+            bash -n ${rebuild}/bin/nixos-rebuild
+            grep -q 'REAL=${pkgs.nixos-rebuild}/bin/nixos-rebuild' ${rebuild}/bin/nixos-rebuild
+            grep -q 'minecraft.lock' ${rebuild}/bin/nixos-rebuild
+            touch $out
+          '';
 
         # a CurseForge mod by its project ID, with no API key
         minecraft-nokey =

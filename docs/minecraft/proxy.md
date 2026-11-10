@@ -186,7 +186,7 @@ beside it as `neovelocity-common-1.toml.bak`, which holds the path and no secret
 
 That setting is for mods that use the login phase themselves, as the Forgified Fabric API can.
 NeoVelocity's builds so far are for Minecraft 1.21 to 1.21.11, and none for 26.x: on a version it has
-no build for, the server's start stops with `neovelocity has no version for neoforge 26.3 on Modrinth`.
+no build for, `nixos-rebuild` stops with `neovelocity has no version for neoforge 26.3 on Modrinth`.
 
 On 1.21.9 to 1.21.11, NeoVelocity 1.2.6 can't log in a player who has a skin, which every player signed
 in with Mojang has: they are turned away with `Internal Exception: java.lang.UnsupportedOperationException`

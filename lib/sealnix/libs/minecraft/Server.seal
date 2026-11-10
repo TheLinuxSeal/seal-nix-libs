@@ -45,8 +45,9 @@ import seal.util.List;
 // docs/minecraft, in seal-nix-libs, is all of it: every setting, the proxy, the service, the errors.
 //
 // A server lives in /var/lib/minecraft/<name>, runs as the user minecraft, and saves and stops on
-// systemctl stop. nixos-rebuild switch restarts a server whose configuration changed. The first start
-// of a Forge or NeoForge server runs its installer, which takes a few minutes.
+// systemctl stop. Its mods and plugins are in minecraft.lock, beside Main.seal, which this library's
+// nixos-rebuild keeps, for Nix to download; the rebuild then restarts a server whose configuration changed.
+// The first start of a Forge or NeoForge server runs its installer, which takes a few minutes.
 class Server extends(Service<Server>) {
     Loader loaderType = Loader.VANILLA;
     bit loaderGiven = false;
@@ -193,6 +194,7 @@ class Server extends(Service<Server>) {
     }
 
     private<Service> string mcVersion() { return minecraft; }
+    private<Service> bit choosesAtStart() { return updates || minecraft == "latest"; }   // "latest" is what a start chooses
     private<Service> string versionShown() { return minecraft; }
     private<Service> Proxy front() { return proxy; }
     private<Service> bit eulaAccepted() { return eula; }

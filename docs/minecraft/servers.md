@@ -78,15 +78,16 @@ isn't Lithium's `mc26.3-0.26.3-fabric`.
 Without a pin, the newest release is chosen, or, if the project has none for that version, the newest
 beta or alpha. The version's primary file is downloaded and checked against Modrinth's sha512.
 
-The files chosen are kept from one start to the next, in `.seal-mc/mods.lock` or `plugins.lock`, so a
-start asks Modrinth nothing. They are chosen again:
+They are chosen as [`nixos-rebuild`](running.md#a-rebuild) runs, and kept in `minecraft.lock`, beside the
+configuration's `Main.seal`, for Nix to download, so a rebuild with nothing new asks Modrinth nothing,
+and a start never does. They are chosen again:
 
-- at every start, with [`autoUpdate()`](#updates);
+- at every start, with [`autoUpdate()`](#updates), which then downloads them itself;
 - all of them, when the loader or the Minecraft version changes;
 - one, when its entry changes (a pin added, or changed) or its file is gone.
 
-A mod or plugin the configuration no longer names is removed, if this put it there. One put in
-`mods/` or `plugins/` by hand isn't, and is never touched.
+A mod or plugin the configuration no longer names is removed at the restart that follows the rebuild,
+if this put it there. One put in `mods/` or `plugins/` by hand isn't, and is never touched.
 
 Modrinth's and CurseForge's dependencies aren't followed: name every mod a mod needs. A server behind a Velocity proxy
 gets what its forwarding needs by itself: [Servers behind a proxy](proxy.md#servers-behind-a-proxy).
@@ -330,22 +331,22 @@ proxy reaches it.
 
 ## Updates
 
-Without `.autoUpdate()`, a server keeps what its first start chose, until the configuration changes:
+Without `.autoUpdate()`, a server keeps what was first chosen for it, until the configuration changes:
 
-| What changes | What a start chooses again |
+| What changes | What is chosen again |
 | --- | --- |
 | the loader, the Minecraft version, or `loaderVersion` | the loader, and, if the loader or the Minecraft version is another, every mod and plugin |
 | a mod's or plugin's entry | that mod or plugin |
-| nothing | nothing; the start downloads nothing, and asks no one |
+| nothing | nothing; nothing is downloaded, and no one asked |
 
 With `.autoUpdate()`, every start chooses the newest of everything given: the Minecraft version, if
 it is `"latest"`, the loader, unless `loaderVersion` pins it, and each mod and plugin that isn't pinned. A start then needs the
 network, and an update can bring a mod that doesn't work with the others; pins keep the ones that
 must stay.
 
-`nixos-rebuild switch` restarts a server whose configuration changed, which is when it chooses again.
-To choose again without a change, delete `.seal-mc/requested` (the loader) or `.seal-mc/mods.for`
-and `.seal-mc/plugins.for` (the mods and plugins) in its folder, and restart it.
+To choose the loader again without a change, delete `.seal-mc/requested` in the server's folder, and
+restart it. For a mod or plugin, take its entry out of `minecraft.lock` (or the server's, for all of
+them), and rebuild.
 
 ## Installing
 
