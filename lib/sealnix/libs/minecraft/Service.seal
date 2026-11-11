@@ -1024,10 +1024,17 @@ abstract class Service<T> {
           echo "$BEHIND" > .seal-mc/behind
         fi
 
+        yqv() { yq --version 2>/dev/null | grep -o 'v[0-9][0-9.]*' | head -1; }
+
         # edit FILE FORMAT EXPRESSION: yq's EXPRESSION on a config file, into FILE.next, read as AS. JSON5
-        # is read by Python, and comes out as plain JSON, which is JSON5 too.
+        # is read by Python, and comes out as plain JSON, which is JSON5 too. FILE.next is read again, and
+        # must hold what yq meant: yq before 4.54 writes a key new to a TOML table after that table's
+        # sections, so that it is read as the last section's. Then each table's values go before its
+        # sections, as TOML has them, and it is written again. 2 if yq still writes it wrong.
         edit() {
-          local file=$1 format=$2 expression=$3 input=$1
+          local file=$1 format=$2 expression=$3 input=$1 meant
+          local order='(.. | select(tag == "!!map")) |= (to_entries
+            | sort_by(.value | tag == "!!map" or (tag == "!!seq" and length > 0 and all_c(tag == "!!map"))) | from_entries)'
           AS=$format
           if [ "$format" = json5 ]; then
             AS=json
@@ -1041,7 +1048,12 @@ abstract class Service<T> {
               cp "$file" "$input"
             fi
           fi
-          yq -p "$AS" -o "$AS" "$expression" "$input" > "$file.next"
+          yq -p "$AS" -o "$AS" "$expression" "$input" > "$file.next" || return 1
+          meant=$(yq -p "$AS" -o json "$expression" "$input" | jq -S .) || return 1
+          if [ "$(yq -p "$AS" -o json "$file.next" 2>/dev/null | jq -S . 2>/dev/null)" != "$meant" ]; then
+            yq -p "$AS" -o "$AS" "$expression | $order" "$input" > "$file.next" || return 2
+            [ "$(yq -p "$AS" -o json "$file.next" 2>/dev/null | jq -S . 2>/dev/null)" = "$meant" ] || return 2
+          fi
         }
 
         # property FILE KEY [VALUE]: KEY's line in a .properties file, in place of the one there, or
@@ -1075,11 +1087,17 @@ abstract class Service<T> {
               if [ "$format" = properties ]; then
                 while IFS= read -r key; do property "$file" "$key"; done < <(jq -r '.keys[][0]' <<<"$gone")
                 log "config: $file: took out what is no longer set"
-              elif KEYS=$(jq -c .keys <<<"$gone") edit "$file" "$format" 'delpaths(env(KEYS))'; then
-                mv -f "$file.next" "$file"
-                log "config: $file: took out what is no longer set"
               else
-                log "config: $file: can't be read, so what is no longer set stays in it"
+                status=0
+                KEYS=$(jq -c .keys <<<"$gone") edit "$file" "$format" 'delpaths(env(KEYS))' || status=$?
+                if [ "$status" = 0 ]; then
+                  mv -f "$file.next" "$file"
+                  log "config: $file: took out what is no longer set"
+                elif [ "$status" = 2 ]; then
+                  log "config: $file: yq $(yqv) writes it wrong without them, so what is no longer set stays in it"
+                else
+                  log "config: $file: can't be read, so what is no longer set stays in it"
+                fi
               fi
               rm -f "$file.next" "$file.read"
             fi
@@ -1105,8 +1123,16 @@ abstract class Service<T> {
             done < <(jq -r '.[] | .key[0] + "\\t" + .value' <<<"$settings")
           else
             touch "$file"
-            SET=$settings edit "$file" "$format" 'env(SET)[] as $e ireduce (.; setpath($e.key; $e.value))' \
-              || { rm -f "$file.next" "$file.read"; fail "$file can't be read as $format, so its settings can't be set; text() writes a whole file"; }
+            status=0
+            SET=$settings edit "$file" "$format" 'env(SET)[] as $e ireduce (.; setpath($e.key; $e.value))' || status=$?
+            if [ "$status" != 0 ]; then rm -f "$file.next" "$file.read"; fi
+            if [ "$status" = 2 ]; then
+              fail "$file: yq $(yqv) writes it wrong with its settings, so it is left as it was: a newer nixpkgs has a newer yq"
+            elif [ "$status" != 0 ] && [ "$format" = toml ] && ! printf '[a]\\nb = 1\\n' | yq -p toml -o toml . > /dev/null 2>&1; then
+              fail "yq $(yqv) can't write TOML, so $file's settings can't be set: that takes yq 4.52 or newer, from a newer nixpkgs"
+            elif [ "$status" != 0 ]; then
+              fail "$file can't be read as $format, so its settings can't be set; text() writes a whole file"
+            fi
             # A key under what isn't a section isn't set, and yq doesn't say so.
             missed=$(yq -p "$AS" -o json "$file.next" | jq -r --argjson s "$settings" \
               '. as $d | $s[] as $e | select((try ($d | getpath($e.key)) catch null) != $e.value) | $e.key | join(".")')

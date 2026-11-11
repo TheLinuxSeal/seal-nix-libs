@@ -259,8 +259,9 @@ server of any loader, a proxy too. It can be a mod's, a plugin's, or the loader'
 
 **`.set(key, value)`** sets that key at every start, and leaves the rest of the file as it is. The
 value is a string, a whole number, `true` or `false`, a decimal, or a list of one of those, and goes
-in as that type, so `true` isn't `"true"`. A list takes the place of the one there. The same key
-again takes the last value.
+in as that type, so `true` isn't `"true"`, and `32` isn't `"32"`: Velocity won't start with
+`show-max-players = "32"`. A list takes the place of the one there. The same key again takes the last
+value.
 
 | Extension | Format | The file's comments |
 | --- | --- | --- |
@@ -269,6 +270,14 @@ again takes the last value.
 | `.json` | JSON | it has none |
 | `.json5` | JSON5 | lost: the file comes back as plain JSON, which is JSON5 too |
 | `.properties` | Java properties | kept |
+
+yq edits the files, the one in the system's nixpkgs, and each file is read again once written, to see
+that it holds what yq meant. Before 4.54, yq's TOML puts a key new to a table after that table's
+sections, so that it is read as the last section's. Velocity can leave `velocity.toml` without
+`show-max-players`, so setting it is such a key. The start then puts each table's values before its
+sections, as TOML has them, and writes it again. What yq still writes wrong, as a new key beside
+`[[array]]` tables, stops the start, and the file is left as it was. yq 4.52 can lose comments then,
+and yq before 4.52, as NixOS 25.11's, can't write TOML at all. A newer nixpkgs has a newer yq.
 
 A dot in a key goes down a level: `general.threads` is `threads` in the section `general`. `\\.` is a
 dot of the key's own: `"a\\.b.c"` is `c` in the section `a.b`. A `.properties` file has no levels, so

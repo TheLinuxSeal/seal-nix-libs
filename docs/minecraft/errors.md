@@ -134,11 +134,14 @@ reason is in its log, `journalctl -u minecraft-<name>`, on a line that starts wi
 | `<slug> has no version <version> for <loader> <version> on Modrinth` | The version given isn't one of the project's version numbers or IDs, or isn't for that loader and Minecraft version. | The whole version number, as the project's Versions tab on Modrinth shows it. |
 | `<path> can't be read as <format>, so its settings can't be set; text() writes a whole file` | The file isn't what its extension says: a mod's `.json` with comments in it, say. It is left as it was. | Give the whole file with `.text()`. |
 | `<path>: can't set <key>, which is under a value that isn't a section` | Part of the key is a value in the file, as `top.sub` where `top = 1`. It is left as it was. | The key as the file has it. |
+| `<path>: yq <version> writes it wrong with its settings, so it is left as it was: a newer nixpkgs has a newer yq` | Read again, the file yq wrote isn't what it meant, even with each table's values before its sections: yq before 4.54, and a new key beside `[[array]]` tables, say ([Config files](servers.md#config-files)). | A newer nixpkgs: `nix flake update nixpkgs`. |
+| `yq <version> can't write TOML, so <path>'s settings can't be set: that takes yq 4.52 or newer, from a newer nixpkgs` | yq before 4.52, as NixOS 25.11's 4.50, reads TOML but can't write it. | A newer nixpkgs. |
 | `<file> can't be read as a list of players, so its players can't be set: mend it, or delete it` | `ops.json`, `banned-players.json` or `whitelist.json` isn't a JSON list. It is left as it was. | Mend the file, or delete it: the server starts a new one, and the configuration's players go in it. |
 | `MODERN forwarding is signed with a secret, and <path> holds none` | The proxy's `forwardingSecretFile()` is missing, empty, or not the user `minecraft`'s to read. (`BUNGEEGUARD` says so too.) | The file, or its owner. |
 | `no forwarding secret to read in <path>, which minecraft-<proxy> signs with` | A server behind a proxy started before the proxy made its secret, or can't read the one given. | Start the proxy: `systemctl start minecraft-<proxy>`. |
 
-One line doesn't stop the start: `config: <path>: can't be read, so what is no longer set stays in it`. A
+Two lines don't stop the start: `config: <path>: can't be read, so what is no longer set stays in it`,
+and `config: <path>: yq <version> writes it wrong without them, so what is no longer set stays in it`. A
 setting was taken out of the configuration, but the file can't be edited, so it stays at its last value.
 
 During `nixos-rebuild`, not a start, a proxy with `generateSecretFile()` can say `minecraft: can't make a new
